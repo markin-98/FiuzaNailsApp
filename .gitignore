@@ -1,0 +1,19 @@
+# Credenciais e acessos — NUNCA subir
+Acessos.txt
+*.env
+.env*
+
+# Backups e arquivos compactados
+App.zip
+*.zip
+
+# Catálogo (não faz parte da vitrine)
+catalogo.pdf
+
+# Arquivos internos / de ferramentas
+.claude/
+
+# Sistema
+Thumbs.db
+.DS_Store
+desktop.ini

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+  <title>Fiuza Nails</title>
+  <!-- Favicon e ícone PWA -->
+  <link rel="icon" type="image/jpeg" href="fabiana.jpg"/>
+  <link rel="apple-touch-icon" href="fabiana.jpg"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Fiuza Nails"/>
+  <meta name="theme-color" content="#4a3525"/>
+  <link rel="manifest" href="manifest.json"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="screen-loading">
+  <div class="logo">
+    <img src="fabiana.jpg" alt="Fabiana" onerror="this.parentElement.innerHTML='<span class=\'logo-fallback\'>💅</span>'"/>
+  </div>
+  <h1>Fiuza Nails</h1>
+  <div class="spinner"></div>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="hidden">
+  <div class="login-card" style="position:relative">
+    <button class="theme-pill login-theme-pill" onclick="toggleTheme()"><span class="th-icon">🌙</span> <span class="th-lbl">Tema</span></button>
+    <div style="width:88px;height:88px;border-radius:50%;overflow:hidden;margin:0 auto 12px;border:3px solid var(--plt);box-shadow:0 4px 20px rgba(100,80,60,.18)">
+      <img src="fabiana.jpg" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='💅'" alt="Fabiana Fiuza"/>
+    </div>
+    <h1>Fiuza Nails</h1>
+    <p class="sub">Fabiana Fiuza · Nail Designer · BH</p>
+    <p class="login-quote">"Detalhes que transformam beleza em poder." ✨</p>
+    <button class="btn-google" onclick="loginGoogle()">
+      <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Entrar com Google
+    </button>
+  </div>
+  <p class="login-footer">Acesso seguro · Seus dados protegidos</p>
+</div>
+
+<!-- MODAL TELEFONE OBRIGATÓRIO -->
+<div id="modal-phone" class="hidden">
+  <div class="box">
+    <div class="sheet-handle"></div>
+    <h3>📱 Seu número de WhatsApp</h3>
+    <p>Para confirmar seus agendamentos precisamos do seu WhatsApp. Este campo é obrigatório.</p>
+    <div class="warn-box">⚠️ Nenhuma cliente pode ficar sem número de telefone — é por onde Fabiana entra em contato para confirmações.
+    </div>
+    <div class="fg">
+      <label>WhatsApp (com DDD)</label>
+      <input type="tel" id="phone-input" placeholder="(11) 99999-9999" />
+    </div>
+    <button class="btn btn-primary btn-full" onclick="salvarTelefone()">Salvar e continuar</button>
+  </div>
+</div>
+
+<!-- ══ CLIENTE APP ══ -->
+<div id="app-cliente" class="hidden">
+
+  <!-- HOME -->
+  <div id="cli-home">
+    <div class="adm-greeting">
+      <div>
+        <div style="font-size:.82rem;font-weight:700;color:var(--t2)">Olá, <strong id="cli-nome-top" style="color:var(--text)"></strong> 👋</div>
+        <div style="font-size:.74rem;color:var(--t3);margin-top:2px" id="cli-date-top"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="theme-pill" onclick="toggleTheme()"><span class="th-icon">🌙</span></button>
+        <div class="av" id="cli-av"></div>
+      </div>
+    </div>
+    <div class="content" style="padding-top:8px">
+      <!-- Hero banner -->
+      <div class="hero-banner" style="display:flex;gap:14px;align-items:center">
+        <div style="width:64px;height:64px;border-radius:50%;overflow:hidden;flex-shrink:0;border:2.5px solid rgba(255,255,255,.4)">
+          <img src="fabiana.jpg" style="width:100%;height:100%;object-fit:cover" onerror="this.innerHTML='💅'" alt="Fabiana"/>
+        </div>
+        <div style="flex:1">
+          <div class="hero-name">Fabiana Fiuza · @ffiuza_nails</div>
+          <div class="hero-quote">Especialista em Molde F1 e Nail Art · BH</div>
+          <div class="hero-sub">"Detalhes que transformam beleza em poder." ✨</div>
+        </div>
+      </div>
+
+      <!-- Serviços destaque -->
+      <div class="sec">Nossos serviços</div>
+      <div class="servs-scroll" id="home-servs"></div>
+
+      <!-- Próximo agendamento -->
+      <div class="sec">Meus agendamentos</div>
+      <div id="cli-proximo"></div>
+      <div id="cli-futuros-wrap" class="hidden">
+        <div class="sec" id="cli-futuros-lbl" style="margin-top:14px">Outros agendamentos</div>
+        <div class="card"><div id="cli-futuros"></div></div>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn btn-dk btn-full" onclick="cliTab('agendar')">+ Novo Agendamento</button>
+    </div>
+  </div>
+
+  <!-- AGENDAR -->
+  <div id="cli-agendar" class="hidden">
+    <div class="content no-pt" id="bk-content">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span style="font-size:.82rem;font-weight:800;color:var(--t2)">💅 Novo Agendamento</span>
+        <button onclick="cliTab('home')" style="background:var(--s3);border:none;color:var(--t2);border-radius:10px;padding:6px 12px;cursor:pointer;font-size:.8rem;font-weight:800;font-family:inherit">✕ Fechar</button>
+      </div>
+
+      <!-- SEÇÃO 1: Serviço -->
+      <div class="bk-section card" id="bk-s1" style="padding:0;margin-bottom:12px">
+        <div class="bk-section-head" id="bk-h1">
+          <div class="bk-step-num active" id="bk-n1">1</div>
+          <div class="bk-lbl">Serviço</div>
+          <div class="bk-val" id="bk-v1"></div>
+        </div>
+        <div class="bk-body" id="bk-b1">
+          <div class="sg" id="bk-servs" style="padding-top:4px"></div>
+          <div id="bk-obs-notice" style="display:none;margin-top:12px;background:var(--goldl);border-radius:14px;padding:12px 14px;border-left:3px solid var(--gold)">
+            <div style="font-size:.7rem;font-weight:900;color:var(--goldt);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">⚠️ Atenção</div>
+            <p id="bk-obs-notice-text" style="font-size:.8rem;color:var(--goldt);line-height:1.6;margin:0"></p>
+          </div>
+          <div id="bk-serv-bar" style="display:none;margin-top:14px;background:var(--goldl);border-radius:14px;padding:12px 14px;border-left:3px solid var(--gold);align-items:center;justify-content:space-between;gap:10px">
+            <div style="min-width:0;flex:1">
+              <div id="bk-bar-label" style="font-size:.82rem;font-weight:900;color:var(--goldt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+              <div id="bk-bar-dur" style="font-size:.72rem;color:var(--goldt);opacity:.8;margin-top:2px"></div>
+            </div>
+            <button onclick="bkAvancarServs()" class="btn btn-primary" style="flex-shrink:0;padding:10px 16px;font-size:.84rem">Continuar →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO 2: Data -->
+      <div class="bk-section card" id="bk-s2" style="padding:0;margin-bottom:12px;opacity:.5;pointer-events:none">
+        <div class="bk-section-head" id="bk-h2">
+          <div class="bk-step-num" id="bk-n2">2</div>
+          <div class="bk-lbl">Data</div>
+          <div class="bk-val" id="bk-v2"></div>
+        </div>
+        <div class="bk-body closed" id="bk-b2">
+          <div class="cal-head">
+            <button onclick="bkMonthChange(-1)">‹</button>
+            <strong id="bk-month-lbl"></strong>
+            <button onclick="bkMonthChange(1)">›</button>
+          </div>
+          <div class="cal-grid" id="bk-cal-dns" style="margin-bottom:6px"></div>
+          <div class="cal-grid" id="bk-cal"></div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO 3: Horário -->
+      <div class="bk-section card" id="bk-s3" style="padding:0;margin-bottom:12px;opacity:.5;pointer-events:none">
+        <div class="bk-section-head" id="bk-h3">
+          <div class="bk-step-num" id="bk-n3">3</div>
+          <div class="bk-lbl">Horário</div>
+          <div class="bk-val" id="bk-v3"></div>
+        </div>
+        <div class="bk-body closed" id="bk-b3">
+          <div class="tg" id="bk-times"></div>
+        </div>
+      </div>
+
+      <!-- SEÇÃO 4: Confirmar -->
+      <div class="bk-section card" id="bk-s4" style="padding:0;margin-bottom:12px;opacity:.5;pointer-events:none">
+        <div class="bk-section-head" id="bk-h4">
+          <div class="bk-step-num" id="bk-n4">4</div>
+          <div class="bk-lbl">Confirmar</div>
+          <div class="bk-val" id="bk-v4"></div>
+        </div>
+        <div class="bk-body closed" id="bk-b4">
+          <div class="cf-row"><span class="cl">Serviço</span><span class="cv" id="cf-serv">—</span></div>
+          <div class="cf-row"><span class="cl">Data</span><span class="cv" id="cf-data">—</span></div>
+          <div class="cf-row"><span class="cl">Horário</span><span class="cv" id="cf-hora">—</span></div>
+          <div class="cf-row"><span class="cl">Valor do serviço</span><span class="cv" id="cf-val">—</span></div>
+          <div class="cf-row"><span class="cl">Sinal via Pix</span><span class="cv" style="color:var(--greent)" id="cf-sinal">— R$ 50,00</span></div>
+          <div class="cf-row" style="border-bottom:none"><span class="cl" style="font-weight:800;color:var(--text)">Restante no dia</span><span class="cv" style="font-weight:900;color:var(--pdk)" id="cf-restante">—</span></div>
+          <div style="margin-top:14px">
+            <div style="font-size:.72rem;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">💳 Como vai pagar o restante?</div>
+            <div class="pag-grid">
+              <div class="pag-chip" id="pc-pix" onclick="bkSelPag('Pix','pc-pix')"><span class="pi">📱</span>Pix</div>
+              <div class="pag-chip" id="pc-cred" onclick="bkSelPag('Cartão Crédito','pc-cred')"><span class="pi">💳</span>Crédito</div>
+              <div class="pag-chip" id="pc-deb" onclick="bkSelPag('Cartão Débito','pc-deb')"><span class="pi">💳</span>Débito</div>
+              <div class="pag-chip" id="pc-din" onclick="bkSelPag('Dinheiro','pc-din')"><span class="pi">💵</span>Dinheiro</div>
+            </div>
+          </div>
+          <!-- Sinal Pix -->
+          <div class="sinal-box">
+            <div style="font-size:.72rem;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">💰 Sinal de Agendamento</div>
+            <div class="pix-info">
+              <div style="font-size:.82rem;color:var(--greent);font-weight:800;margin-bottom:8px">Envie o sinal via Pix para reservar seu horário:</div>
+              <div class="pix-key-row">
+                <div class="pk-lbl">Chave Pix · Telefone</div>
+                <div class="pk-val" id="bk-pix-key">(31) 98538-6404</div>
+              </div>
+              <div style="background:#25D366;border-radius:10px;padding:11px 13px;margin-top:10px;display:flex;align-items:flex-start;gap:9px">
+                <span style="font-size:1.2rem;flex-shrink:0;line-height:1.3">📲</span>
+                <div style="font-size:.8rem;color:#fff;line-height:1.55;font-weight:700">
+                  Após fazer o Pix, <strong>envie o comprovante via WhatsApp</strong> para a Fabiana. Ao clicar em "Confirmar" abaixo, o WhatsApp abre automaticamente com a mensagem pronta — é só encaminhar o comprovante junto.
+                </div>
+              </div>
+              <div style="font-size:.7rem;color:var(--greent);line-height:1.5;margin-top:8px;opacity:.85">⚠️ O sinal não é devolvido em caso de cancelamento com menos de 24h de antecedência. Seu horário só é confirmado <strong>após verificação do Pix</strong>.</div>
+            </div>
+          </div>
+          <div class="fg" style="margin-top:14px;margin-bottom:0">
+            <label>Observação (opcional)</label>
+            <textarea id="bk-obs" rows="2" placeholder="Cor desejada, nail art, referência..."></textarea>
+          </div>
+          <div style="height:14px"></div>
+          <button class="btn btn-dk btn-full" id="bk-cf-btn" onclick="bkConfirm()">Já enviei o Pix — Confirmar 💅</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div id="cli-success" class="hidden">
+    <div class="content no-pt">
+      <div class="success-box">
+        <div class="success-icon">⏳</div>
+        <h2>Aguardando confirmação!</h2>
+        <p>Seu pedido foi recebido. Assim que o Pix for verificado, seu horário estará confirmado. 💅<br><span style="font-size:.78rem;opacity:.8">Caso o WhatsApp não tenha aberto, use os botões abaixo.</span></p>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="cf-row"><span class="cl">Serviço</span><span class="cv" id="sc-serv">—</span></div>
+        <div class="cf-row"><span class="cl">Data</span><span class="cv" id="sc-data">—</span></div>
+        <div class="cf-row"><span class="cl">Horário</span><span class="cv" id="sc-hora">—</span></div>
+        <div class="cf-row"><span class="cl">Valor total</span><span class="cv" id="sc-val">—</span></div>
+        <div class="cf-row"><span class="cl">Sinal Pix enviado</span><span class="cv" id="sc-sinal" style="color:var(--greent)">—</span></div>
+        <div class="cf-row"><span class="cl">Restante no dia</span><span class="cv" id="sc-restante" style="font-weight:900;color:var(--pdk)">—</span></div>
+        <div class="cf-row"><span class="cl">Pagamento restante</span><span class="cv" id="sc-pag">—</span></div>
+        <div class="cf-row" style="border-bottom:none"><span class="cl">Status</span><span class="cv" style="color:var(--gold);font-weight:800">⏳ Aguardando verificação do Pix</span></div>
+      </div>
+      <a id="wa-salon-link" href="#" target="_blank" class="btn btn-wa btn-full" style="margin-bottom:10px;text-decoration:none">
+        📲 Reenviar mensagem à Fabiana
+      </a>
+      <a id="wa-cliente-link" href="#" target="_blank" class="btn btn-full" style="margin-bottom:10px;text-decoration:none;background:var(--plt);color:var(--pdk)">
+        💅 Reenviar meu comprovante
+      </a>
+      <button class="btn btn-outline btn-full" onclick="cliTab('home')">Voltar ao início</button>
+    </div>
+  </div>
+
+  <!-- SALÃO INFO -->
+  <div id="cli-salon" class="hidden">
+    <div class="salon-hero">
+      <div class="salon-hero-av">
+        <img src="fabiana.jpg" alt="Fabiana Fiuza" onerror="this.parentElement.innerHTML='💅'"/>
+      </div>
+      <h2>Fabiana Fiuza</h2>
+      <p id="salon-especialidade">Nail Designer · Especialista em Molde F1 e Nail Art<br>Belo Horizonte, MG</p>
+    </div>
+    <div class="content">
+      <div class="contact-btns">
+        <a id="salon-wa-btn" href="https://wa.me/5531985386404" target="_blank" class="contact-btn wa"><span class="cbi">📲</span>WhatsApp</a>
+        <a id="salon-ig-btn" href="https://instagram.com/ffiuza_nails" target="_blank" class="contact-btn ig"><span class="cbi">📸</span>Instagram</a>
+      </div>
+      <div id="salon-content"></div>
+      <div style="height:8px"></div>
+      <button class="btn btn-dk btn-full" onclick="cliTab('agendar')">Agendar agora 💅</button>
+    </div>
+  </div>
+
+  <!-- HISTÓRICO -->
+  <div id="cli-historico" class="hidden">
+    <div class="content no-pt">
+      <div id="cli-fid-wrap"></div>
+      <div class="card"><div id="cli-hist"></div></div>
+    </div>
+  </div>
+
+  <!-- PERFIL CLIENTE -->
+  <div id="cli-perfil" class="hidden">
+    <div class="content no-pt">
+      <div class="card">
+        <div class="profile-hero">
+          <div class="profile-av" id="cli-pav">😊</div>
+          <div style="font-weight:900;font-size:1.1rem" id="cli-pnome">—</div>
+          <div style="font-size:.8rem;color:var(--t2);margin-top:2px" id="cli-pemail">—</div>
+        </div>
+        <div class="fg">
+          <label>WhatsApp (com DDD)</label>
+          <input type="tel" id="cli-ptel" placeholder="(11) 99999-9999"/>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="cliSalvarPerfil()">Salvar</button>
+      </div>
+      <div style="height:12px"></div>
+      <div class="card">
+        <button class="btn btn-danger btn-full" onclick="logout()">Sair da conta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAV CLIENTE -->
+  <nav class="bottom-nav">
+    <div class="nav-tab active" id="cntab-home" onclick="cliTab('home')"><span class="icon">🏠</span><span>Início</span></div>
+    <div class="nav-tab" id="cntab-agendar" onclick="cliTab('agendar')"><span class="icon">📅</span><span>Agendar</span></div>
+    <div class="nav-tab" id="cntab-salon" onclick="cliTab('salon')"><span class="icon">💅</span><span>Salão</span></div>
+    <div class="nav-tab" id="cntab-historico" onclick="cliTab('historico')"><span class="icon">📋</span><span>Histórico</span></div>
+    <div class="nav-tab" id="cntab-perfil" onclick="cliTab('perfil')"><span class="icon">👤</span><span>Perfil</span></div>
+  </nav>
+</div>
+
+<!-- ══ ADMIN APP ══ -->
+<div id="app-admin" class="hidden">
+
+  <!-- DASHBOARD -->
+  <div id="adm-dashboard">
+    <div class="adm-greeting">
+      <div><h2 id="adm-greet">Bom dia! 💅</h2><p id="adm-date"></p></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="theme-pill" onclick="toggleTheme()"><span class="th-icon">🌙</span></button>
+        <button class="bell-btn" onclick="toggleNotifPanel()" id="bell-btn">🔔<span class="notif-badge hidden" id="notif-badge">0</span></button>
+        <div class="av" id="adm-av">👸</div>
+      </div>
+    </div>
+    <div class="content" style="padding-top:8px">
+      <div class="stats2">
+        <div class="sbox"><div class="si">📅</div><div class="sl">Hoje</div><div class="sv" id="ds-hoje">0</div><div class="ss">agendamentos</div></div>
+        <div class="sbox"><div class="si">💰</div><div class="sl">Receita hoje</div><div class="sv" id="ds-rec">R$0</div><div class="ss">concluídos</div></div>
+        <div class="sbox"><div class="si">✅</div><div class="sl">Concluídos</div><div class="sv" id="ds-conc">0</div><div class="ss">hoje</div></div>
+        <div class="sbox"><div class="si">🗓️</div><div class="sl">Mês</div><div class="sv" id="ds-mes">R$0</div><div class="ss">receita</div></div>
+      </div>
+      <!-- Pix Pendentes -->
+      <div id="ds-pend-wrap" class="hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="sec" style="margin:0">⏳ Aguardando Pix</div>
+          <span class="badge badge-gold" id="ds-pend-count">0</span>
+        </div>
+        <div id="ds-pend-list" style="margin-bottom:14px"></div>
+      </div>
+      <div class="sec">Próximos de hoje</div>
+      <div class="card"><div id="ds-list"></div></div>
+      <div style="height:12px"></div>
+    </div>
+  </div>
+
+  <!-- AGENDA -->
+  <div id="adm-agenda" class="hidden">
+    <div class="content no-pt">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <p id="adm-sel-date-lbl" style="font-size:.8rem;color:var(--t2);font-weight:600;margin:0"></p>
+        <button class="bell-btn" onclick="toggleNotifPanel()">🔔<span class="notif-badge hidden" id="notif-badge-ag">0</span></button>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <button onclick="admWeek(-1)" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--primary);padding:4px">‹</button>
+          <span style="font-size:.82rem;font-weight:800;color:var(--pdk)" id="adm-week-lbl"></span>
+          <button onclick="admWeek(1)" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--primary);padding:4px">›</button>
+        </div>
+        <div class="week-scroll" id="adm-week"></div>
+      </div>
+      <div class="card"><div id="adm-day-list"></div></div>
+    </div>
+  </div>
+
+  <!-- CLIENTES -->
+  <div id="adm-clientes" class="hidden">
+    <div class="content no-pt">
+      <div class="fg" style="margin-bottom:12px;position:relative">
+        <input type="text" id="adm-cli-busca" placeholder="🔍 Buscar cliente..." oninput="admRenderClis()" style="background:var(--surface)"/>
+        <span id="adm-cli-count" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:.74rem;color:var(--t2);font-weight:700"></span>
+      </div>
+      <div class="card"><div id="adm-cli-list"></div></div>
+    </div>
+  </div>
+
+  <!-- SERVIÇOS -->
+  <div id="adm-servicos" class="hidden">
+    <div class="content no-pt">
+      <div class="sec">✨ Serviços</div>
+      <div class="card"><div id="adm-serv-list"></div></div>
+      <div class="sec">📅 Horários por Dia da Semana</div>
+      <div class="card">
+        <p style="font-size:.78rem;color:var(--t2);margin-bottom:12px;line-height:1.5">Configure horários padrão para cada dia da semana. Exceções por data específica têm prioridade sobre estes.</p>
+        <div style="display:flex;gap:6px;margin-bottom:14px" id="adm-dow-tabs"></div>
+        <div id="adm-dow-wrap" style="display:none">
+          <div id="adm-dow-lbl" style="font-size:.84rem;font-weight:900;color:var(--primary);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-b)"></div>
+          <div class="hor-grid" id="adm-hor-dow-grid"></div>
+          <div style="height:12px"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" style="font-size:.8rem;padding:10px 12px;flex-shrink:0" onclick="admLimparDow()">🗑️ Remover</button>
+            <button class="btn btn-dk" style="flex:1" onclick="admSalvarHorariosSemana()">💾 Salvar</button>
+          </div>
+        </div>
+      </div>
+      <div class="sec">⏰ Exceções por Data</div>
+      <div class="card">
+        <p style="font-size:.78rem;color:var(--t2);margin-bottom:12px;line-height:1.5">Toque em uma data para configurar os horários. Datas sem configuração usam o horário padrão.</p>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <button onclick="admHorMonthChange(-1)" style="background:none;border:1px solid var(--glass-b);border-radius:8px;padding:4px 12px;cursor:pointer;font-size:1.1rem;color:var(--text)">◀</button>
+          <span id="adm-hor-month-lbl" style="font-weight:900;font-size:.92rem"></span>
+          <button onclick="admHorMonthChange(1)" style="background:none;border:1px solid var(--glass-b);border-radius:8px;padding:4px 12px;cursor:pointer;font-size:1.1rem;color:var(--text)">▶</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;margin-bottom:4px">
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Dom</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Seg</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Ter</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Qua</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Qui</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Sex</div>
+          <div style="font-size:.68rem;font-weight:800;color:var(--t3);padding:2px">Sáb</div>
+        </div>
+        <div id="adm-hor-cal" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:14px"></div>
+        <div id="adm-hor-data-wrap" style="display:none">
+          <div id="adm-hor-data-lbl" style="font-size:.84rem;font-weight:900;color:var(--primary);margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--glass-b)"></div>
+          <label style="display:flex;align-items:center;gap:10px;font-size:.82rem;font-weight:700;margin-bottom:12px;cursor:pointer">
+            <input type="checkbox" id="dia-ativo" style="width:18px;height:18px;accent-color:var(--primary)"/>
+            Atende neste dia
+          </label>
+          <div class="hor-grid" id="adm-hor-grid"></div>
+          <div style="height:12px"></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" style="font-size:.8rem;padding:10px 12px;flex-shrink:0" onclick="admLimparData()">🔄 Usar padrão</button>
+            <button class="btn btn-dk" style="flex:1" onclick="admSalvarHorariosData()">💾 Salvar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">🏪 Página do Salão</div>
+      <div class="card">
+        <p style="font-size:.78rem;color:var(--t2);margin-bottom:14px;line-height:1.5">Edite as informações exibidas na aba Salão para as clientes</p>
+        <div class="fg">
+          <label>Especialidade (subtítulo)</label>
+          <input type="text" id="si-especialidade" placeholder="Ex: Nail Designer · Especialista em Molde F1"/>
+        </div>
+        <div class="fg">
+          <label>Sobre Mim (bio)</label>
+          <textarea id="si-bio" rows="4" style="width:100%;padding:12px;border:1.5px solid var(--s3);border-radius:12px;font-family:inherit;font-size:.88rem;background:var(--bg);color:var(--text);outline:none;resize:vertical"></textarea>
+        </div>
+        <div class="fg">
+          <label>Texto "Seu Momento"</label>
+          <textarea id="si-momento" rows="5" style="width:100%;padding:12px;border:1.5px solid var(--s3);border-radius:12px;font-family:inherit;font-size:.88rem;background:var(--bg);color:var(--text);outline:none;resize:vertical"></textarea>
+        </div>
+        <div class="fg">
+          <label>Endereço</label>
+          <textarea id="si-endereco" rows="2" style="width:100%;padding:12px;border:1.5px solid var(--s3);border-radius:12px;font-family:inherit;font-size:.88rem;background:var(--bg);color:var(--text);outline:none;resize:vertical"></textarea>
+        </div>
+        <div class="fg">
+          <label>Link Google Maps</label>
+          <input type="url" id="si-maps" placeholder="https://maps.google.com/?q=..."/>
+        </div>
+        <div class="fg">
+          <label>Instagram (sem @)</label>
+          <input type="text" id="si-instagram" placeholder="ffiuza_nails"/>
+        </div>
+        <div class="fg">
+          <label>WhatsApp (com código do país, sem +)</label>
+          <input type="text" id="si-whatsapp" placeholder="5531985386404"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+          <div class="fg" style="margin:0">
+            <label style="font-size:.74rem">Seg – Sex</label>
+            <input type="text" id="si-seg-sex" placeholder="09:00 – 18:00" style="font-size:.8rem"/>
+          </div>
+          <div class="fg" style="margin:0">
+            <label style="font-size:.74rem">Sábado</label>
+            <input type="text" id="si-sabado" placeholder="09:00 – 16:00" style="font-size:.8rem"/>
+          </div>
+          <div class="fg" style="margin:0">
+            <label style="font-size:.74rem">Domingo</label>
+            <input type="text" id="si-domingo" placeholder="Fechado" style="font-size:.8rem"/>
+          </div>
+        </div>
+        <div class="fg">
+          <label>Observações dos Serviços</label>
+          <textarea id="si-obs" rows="3" style="width:100%;padding:12px;border:1.5px solid var(--s3);border-radius:12px;font-family:inherit;font-size:.88rem;background:var(--bg);color:var(--text);outline:none;resize:vertical" placeholder="Ex: A decoração é cobrada à parte..."></textarea>
+        </div>
+        <button class="btn btn-dk btn-full" onclick="admSalvarInfo()">💾 Salvar Informações do Salão</button>
+        <div style="height:16px"></div>
+        <div style="font-size:.76rem;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">📋 Ordem das Seções</div>
+        <div id="adm-section-order" style="display:flex;flex-direction:column;gap:6px"></div>
+        <div style="height:10px"></div>
+        <button class="btn btn-dk btn-full" onclick="admSalvarOrdem()">💾 Salvar Ordem</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERFIL ADM (com financeiro) -->
+  <div id="adm-perfil" class="hidden">
+    <div class="content no-pt">
+      <div class="card" style="margin-bottom:12px">
+        <div class="profile-hero">
+          <div class="profile-av" id="adm-pav">👸</div>
+          <div style="font-weight:900;font-size:1.1rem" id="adm-pnome">—</div>
+          <div style="font-size:.8rem;color:var(--t2);margin-top:2px" id="adm-pemail">—</div>
+          <div style="font-size:.78rem;color:var(--t2);margin-top:4px">Especialista em Molde F1 e Nail Art · BH</div>
+          <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+            <span class="badge badge-gold">Admin ✨</span>
+            <a href="https://wa.me/5531985386404" target="_blank" class="badge" style="background:#d6f5e3;color:#1a6a3a;text-decoration:none">📲 WhatsApp</a>
+            <a href="https://instagram.com/ffiuza_nails" target="_blank" class="badge" style="background:#fde8f5;color:#8a1a6a;text-decoration:none">📸 Instagram</a>
+          </div>
+        </div>
+        <button class="btn btn-danger btn-full" onclick="logout()">Sair da conta</button>
+      </div>
+
+      <!-- FINANCEIRO -->
+      <div class="sec">Financeiro</div>
+      <div class="card">
+        <div class="fin-tabs">
+          <div class="fin-tab active" id="ftab-hoje" onclick="finTab('hoje',this)">Hoje</div>
+          <div class="fin-tab" id="ftab-semana" onclick="finTab('semana',this)">Semana</div>
+          <div class="fin-tab" id="ftab-mes" onclick="finTab('mes',this)">Mês</div>
+          <div class="fin-tab" id="ftab-data" onclick="finTab('data',this)">Período</div>
+        </div>
+        <div id="fin-date-wrap" class="hidden" style="margin-bottom:12px;display:flex;gap:10px;align-items:flex-end">
+          <div class="fg" style="margin:0;flex:1;min-width:0">
+            <label style="font-size:.74rem;margin-bottom:4px;display:block;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.3px">De</label>
+            <input type="date" id="fin-date-from" onchange="finTab('data',document.getElementById('ftab-data'))"/>
+          </div>
+          <div style="font-size:.8rem;font-weight:800;color:var(--t3);padding-bottom:12px;flex-shrink:0">—</div>
+          <div class="fg" style="margin:0;flex:1;min-width:0">
+            <label style="font-size:.74rem;margin-bottom:4px;display:block;font-weight:800;color:var(--t2);text-transform:uppercase;letter-spacing:.3px">Até</label>
+            <input type="date" id="fin-date-to" onchange="finTab('data',document.getElementById('ftab-data'))"/>
+          </div>
+        </div>
+        <div class="fin-big">
+          <div class="fv" id="fin-val">R$ 0,00</div>
+          <div class="fs" id="fin-sub">0 atendimentos concluídos</div>
+        </div>
+        <div id="fin-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAB -->
+  <button id="adm-fab" class="fab hidden" onclick="admFabClick()">＋</button>
+
+  <!-- MODAL CLIENTE -->
+  <div class="sheet-overlay" id="modal-cli" onclick="if(event.target===this)closeModal('modal-cli')">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div id="modal-cli-body"></div>
+    </div>
+  </div>
+
+  <!-- PAINEL DE NOTIFICAÇÕES -->
+  <div class="notif-backdrop" id="notif-backdrop" onclick="toggleNotifPanel()"></div>
+  <div class="notif-panel" id="notif-panel">
+    <div class="notif-handle"></div>
+    <div class="notif-head">
+      <div style="font-size:.95rem;font-weight:900">🔔 Notificações</div>
+      <button onclick="toggleNotifPanel()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--t2);padding:4px 8px">✕</button>
+    </div>
+    <div class="notif-body" id="notif-body">
+      <div style="text-align:center;padding:32px;color:var(--t3);font-size:.85rem">Sem notificações</div>
+    </div>
+  </div>
+
+  <!-- NAV ADMIN -->
+  <nav class="bottom-nav">
+    <div class="nav-tab active" id="antab-dashboard" onclick="admTab('dashboard',this)"><span class="icon">🏠</span><span>Início</span></div>
+    <div class="nav-tab" id="antab-agenda" onclick="admTab('agenda',this)"><span class="icon">📅</span><span>Agenda</span><span class="nav-pend-badge hidden" id="nav-pend-badge">0</span></div>
+    <div class="nav-tab" id="antab-clientes" onclick="admTab('clientes',this)"><span class="icon">👩</span><span>Clientes</span></div>
+    <div class="nav-tab" id="antab-servicos" onclick="admTab('servicos',this)"><span class="icon">✨</span><span>Serviços</span></div>
+    <div class="nav-tab" id="antab-perfil" onclick="admTab('perfil',this)"><span class="icon">💰</span><span>Financeiro</span></div>
+  </nav>
+</div>
+
+<!-- SHEET: Agendamento admin -->
+<div class="sheet-overlay" id="sh-agend">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3 id="sh-agend-title">✨ Novo Agendamento</h3>
+    <div class="fg"><label>Cliente</label><select id="ag-cli"></select></div>
+    <div class="fg"><label>Serviços</label><div id="ag-serv-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;margin-top:4px;width:100%"></div></div>
+    <div id="ag-serv-bar" style="display:none;background:var(--goldl);border-radius:10px;padding:8px 12px;border-left:3px solid var(--gold);font-size:.8rem;font-weight:700;color:var(--goldt);margin-bottom:4px;width:100%;box-sizing:border-box;word-break:break-word"></div>
+    <div class="fg"><label>Data</label><input type="date" id="ag-data" onchange="admRenderAgTimes()"/></div>
+    <div class="fg"><label>Horários disponíveis</label><div id="ag-times" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:6px;margin-top:4px;width:100%"></div></div>
+    <div class="fg" style="margin-top:-4px"><label style="font-size:.75rem;color:var(--t3)">Horário selecionado / digitar manualmente</label><input type="time" id="ag-hora" oninput="admRenderAgTimes()"/></div>
+    <div class="form-row">
+      <div class="fg"><label>Valor (R$)</label><input type="number" id="ag-valor" step="0.01"/></div>
+      <div class="fg"><label>Status</label>
+        <select id="ag-status">
+          <option value="agendado">Agendado</option>
+          <option value="pendente">⏳ Pendente (Pix)</option>
+          <option value="concluido">Concluído</option>
+          <option value="cancelado">Cancelado</option>
+          <option value="faltante">👻 Faltou</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg"><label>Observação</label><textarea id="ag-obs" rows="2" placeholder="Referência, cor..."></textarea></div>
+    <label style="display:flex;align-items:center;gap:10px;font-size:.83rem;color:var(--t2);font-weight:600;padding:8px 0;cursor:pointer">
+      <input type="checkbox" id="ag-sinal-pago" style="width:18px;height:18px;accent-color:var(--green);cursor:pointer"/>
+      Sinal Pix recebido
+    </label>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeSheet('sh-agend')">Cancelar</button>
+      <button class="btn btn-dk" onclick="admSalvarAgend()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHEET: Serviço admin -->
+<div class="sheet-overlay" id="sh-serv">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h3 id="sh-serv-title">✨ Novo Serviço</h3>
+    <div class="fg"><label>Nome</label><input type="text" id="sv-nome" placeholder="Ex: Manicure Gel"/></div>
+    <div class="fg">
+      <label>Ícone</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;flex-wrap:wrap">
+        <input type="text" id="sv-icone" maxlength="4" style="width:54px;text-align:center;font-size:1.6rem;padding:6px 4px;border-radius:10px;border:1.5px solid var(--glass-b);background:var(--s2)" placeholder="💅"/>
+        <div id="sv-icone-picks" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Preço (R$)</label><input type="number" id="sv-preco" step="0.01"/></div>
+      <div class="fg"><label>Duração (min)</label><input type="number" id="sv-dur"/></div>
+    </div>
+    <div class="fg"><label>Descrição</label><textarea id="sv-desc" rows="2"></textarea></div>
+    <label style="display:flex;align-items:center;gap:10px;font-size:.82rem;font-weight:700;margin-bottom:16px;cursor:pointer">
+      <input type="checkbox" id="sv-ativo" checked style="width:18px;height:18px;accent-color:var(--primary)"/>
+      Serviço ativo (visível para clientes)
+    </label>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeSheet('sh-serv')">Cancelar</button>
+      <button class="btn btn-dk" onclick="admSalvarServ()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+<script src="script.js"></script>
+</body>
+</html>
