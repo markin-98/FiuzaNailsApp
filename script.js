@@ -74,6 +74,7 @@ initTheme();
 // ── NOTIFICAÇÕES ──
 let notifOpen=false;
 let notifRealtime=null;
+let cliRealtime=null;
 
 function toggleNotifPanel(){
   notifOpen=!notifOpen;
@@ -174,18 +175,48 @@ async function updateNotifCount(){
 
 function initNotifications(){
   updateNotifCount();
-  // Realtime: nova solicitação chega → atualiza badge e notifica
+  // Realtime: qualquer mudança nos agendamentos (novo/confirmado/cancelado/editado)
+  // atualiza o badge, a tela visível e o painel de notificações.
   if(notifRealtime) sb.removeChannel(notifRealtime);
-  notifRealtime=sb.channel('notif-agend')
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'agendamentos'},async(payload)=>{
-      if(payload.new?.status==='pendente'){
-        const n=await updateNotifCount();
+  notifRealtime=sb.channel('adm-agend')
+    .on('postgres_changes',{event:'*',schema:'public',table:'agendamentos'},async(payload)=>{
+      const n=await updateNotifCount();
+      if(payload.eventType==='INSERT' && payload.new?.status==='pendente'){
         toast(`🔔 Nova solicitação de agendamento! (${n} pendente${n>1?'s':''})`);
-        if(notifOpen) renderNotifPanel();
-        admRenderDash();
       }
+      admRefreshCurrent();
+      if(notifOpen) renderNotifPanel();
     })
     .subscribe();
+}
+
+// Atualiza só a aba que o admin está vendo (evita trabalho à toa)
+function admRefreshCurrent(){
+  const tab=document.querySelector('.nav-tab.active[id^="antab-"]')?.id?.replace('antab-','');
+  if(tab==='dashboard') admRenderDash();
+  else if(tab==='agenda') admRenderAgenda();
+}
+
+// Realtime do lado da cliente: reage às mudanças dos próprios agendamentos
+function initClienteRealtime(){
+  if(cliRealtime) sb.removeChannel(cliRealtime);
+  cliRealtime=sb.channel('cli-agend')
+    .on('postgres_changes',{event:'*',schema:'public',table:'agendamentos',filter:`cliente_id=eq.${user.id}`},(payload)=>{
+      const oldS=payload.old?.status, newS=payload.new?.status;
+      if(payload.eventType==='UPDATE'){
+        if(newS==='agendado' && oldS && oldS!=='agendado') toast('✅ Pagamento confirmado! Seu horário está reservado 💅');
+        else if(newS==='cancelado' && oldS!=='cancelado') toast('⚠️ Seu agendamento foi cancelado.');
+      }
+      cliRefreshCurrent();
+    })
+    .subscribe();
+}
+
+// Atualiza só a aba que a cliente está vendo
+function cliRefreshCurrent(){
+  const visible=CLI_TABS.find(t=>!document.getElementById('cli-'+t)?.classList.contains('hidden'));
+  if(visible==='home') cliRenderHome();
+  else if(visible==='historico') cliRenderHist();
 }
 
 // ── UTILS ──
@@ -317,6 +348,7 @@ function initCliente(){
   // Obrigar telefone
   if(!profile?.tel){ show('modal-phone'); }
   cliTab('home');
+  initClienteRealtime();
 }
 
 const CLI_TABS=['home','agendar','salon','historico','perfil','success'];

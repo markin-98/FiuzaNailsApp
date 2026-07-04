@@ -65,6 +65,22 @@ alter table public.agendamentos add column if not exists sinal_pago boolean defa
 alter table public.agendamentos add column if not exists servicos_ids uuid[] default '{}';
 alter table public.servicos add column if not exists icone text;
 
+-- ── REALTIME: atualizações ao vivo dos agendamentos ─────────
+-- Permite que o app receba mudanças em tempo real (novo pedido, Pix confirmado,
+-- cancelamento). REPLICA IDENTITY FULL faz o registro antigo vir nos eventos de
+-- UPDATE/DELETE, necessário para detectar a transição de status e para os filtros.
+alter table public.agendamentos replica identity full;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agendamentos'
+  ) then
+    alter publication supabase_realtime add table public.agendamentos;
+  end if;
+end $$;
+
 -- Fidelidade: contador de prêmios resgatados por cliente
 alter table public.profiles add column if not exists premios_resgatados integer default 0;
 
