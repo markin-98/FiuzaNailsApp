@@ -113,19 +113,17 @@ async function renderNotifPanel(){
     const pendStr=pendH<1?'há menos de 1h':pendH===1?'há 1h':`há ${pendH}h`;
     const quaseExp=pendH>=20;
     return `<div class="notif-item pend">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
-        <div>
-          <div style="font-size:.82rem;font-weight:900;color:var(--goldt)">⏳ Pix pendente</div>
-          <div style="font-size:.66rem;color:${quaseExp?'var(--redt)':'var(--t3)'};margin-top:1px;font-weight:${quaseExp?800:600}">${pendStr}${quaseExp?' ⚠️ expira em breve':''}</div>
-        </div>
-        <div style="display:flex;gap:5px;flex-shrink:0">
-          <button class="btn btn-sm" style="background:var(--green);color:#fff;font-size:.7rem;padding:5px 9px" onclick="admConfPixNotif('${a.id}')">✓ Recebido</button>
-          <button class="btn btn-sm" style="background:var(--red);color:#fff;font-size:.7rem;padding:5px 9px" onclick="admRejectPixNotif('${a.id}')">✗ Cancelar</button>
-        </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div style="font-size:.82rem;font-weight:900;color:var(--goldt)">⏳ Pix pendente</div>
+        <div style="font-size:.66rem;color:${quaseExp?'var(--redt)':'var(--t3)'};font-weight:${quaseExp?800:600};text-align:right;flex-shrink:0">${pendStr}${quaseExp?' ⚠️':''}</div>
       </div>
       <div style="font-weight:800;font-size:.9rem">${a.cliente?.nome||'—'}</div>
       <div style="font-size:.78rem;color:var(--t2);margin-top:2px">💅 ${a.servico?.nome||'—'}</div>
       <div style="font-size:.76rem;color:var(--t3);margin-top:2px">${dow}, ${fmtDate(a.data)} às ${fmtH(a.hora)} · Restante: <strong>${fmtMoney(restante)}</strong></div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-sm" style="flex:1;background:var(--green);color:#fff" onclick="admConfPixNotif('${a.id}')">✓ Recebido</button>
+        <button class="btn btn-sm" style="flex:1;background:var(--red);color:#fff" onclick="admRejectPixNotif('${a.id}')">✗ Cancelar</button>
+      </div>
     </div>`;
   }).join('');
 }
