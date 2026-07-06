@@ -1651,4 +1651,50 @@ document.querySelectorAll('.sheet-overlay').forEach(o=>{
   o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); });
 });
 
+// ── PWA Install Banner ──
+(function(){
+  const DISMISS_KEY='pwa_banner_dismissed';
+  const isStandalone=window.matchMedia('(display-mode:standalone)').matches||navigator.standalone===true;
+  if(isStandalone) return;
+  if(sessionStorage.getItem(DISMISS_KEY)) return;
+
+  const banner=document.getElementById('pwa-banner');
+  const btn=document.getElementById('pwa-banner-btn');
+  const sub=document.getElementById('pwa-banner-sub');
+  let deferredPrompt=null;
+
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  window.addEventListener('beforeinstallprompt',e=>{
+    e.preventDefault();
+    deferredPrompt=e;
+    sub.textContent='Instale e acesse como um app';
+    banner.classList.remove('hidden');
+  });
+
+  if(isIOS&&!isStandalone){
+    sub.textContent='Veja como adicionar à tela inicial';
+    btn.textContent='Como instalar';
+    setTimeout(()=>banner.classList.remove('hidden'),2000);
+  }
+
+  btn.addEventListener('click',async()=>{
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      const{outcome}=await deferredPrompt.userChoice;
+      deferredPrompt=null;
+      if(outcome==='accepted') banner.classList.add('hidden');
+    } else if(isIOS){
+      const m=document.getElementById('pwa-ios-modal');
+      m.classList.remove('hidden');
+      m.style.display='flex';
+    }
+  });
+})();
+
+function pwaBannerDismiss(){
+  document.getElementById('pwa-banner').classList.add('hidden');
+  sessionStorage.setItem('pwa_banner_dismissed','1');
+}
+
 init();

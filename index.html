@@ -628,6 +628,43 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- BANNER: Adicionar à tela inicial -->
+<div id="pwa-banner" class="pwa-banner hidden">
+  <div class="pwa-banner-inner">
+    <img src="fabiana.jpg" alt="Fiuza Nails" class="pwa-banner-icon" onerror="this.src=''"/>
+    <div class="pwa-banner-text">
+      <strong>Fiuza Nails</strong>
+      <span id="pwa-banner-sub">Adicione à tela inicial para acesso rápido</span>
+    </div>
+    <button id="pwa-banner-btn" class="pwa-banner-action">Instalar</button>
+    <button class="pwa-banner-close" onclick="pwaBannerDismiss()" aria-label="Fechar">✕</button>
+  </div>
+</div>
+
+<!-- MODAL: Instruções iOS -->
+<div id="pwa-ios-modal" class="sheet-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="sheet" style="max-height:auto;padding-bottom:env(safe-area-inset-bottom,16px)">
+    <div class="sheet-handle"></div>
+    <div style="text-align:center;margin-bottom:12px">
+      <img src="fabiana.jpg" style="width:64px;height:64px;border-radius:16px;object-fit:cover;border:2px solid var(--plt)" onerror="this.style.display='none'" alt=""/>
+      <h3 style="margin:10px 0 4px">Instalar Fiuza Nails</h3>
+      <p style="color:var(--t3);font-size:.82rem;margin:0">Acesse como um app, direto da sua tela inicial</p>
+    </div>
+    <div class="pwa-step">
+      <div class="pwa-step-num">1</div>
+      <div>Toque no botão <strong>Compartilhar</strong> <span class="pwa-ios-share">⬆</span> na barra inferior do Safari</div>
+    </div>
+    <div class="pwa-step">
+      <div class="pwa-step-num">2</div>
+      <div>Role a lista e toque em <strong>"Adicionar à Tela de Início"</strong></div>
+    </div>
+    <div class="pwa-step">
+      <div class="pwa-step-num">3</div>
+      <div>Toque em <strong>Adicionar</strong> no canto superior direito</div>
+    </div>
+    <button class="btn btn-dk btn-full" style="margin-top:16px" onclick="document.getElementById('pwa-ios-modal').classList.add('hidden')">Entendi!</button>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>
