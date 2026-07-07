@@ -109,7 +109,7 @@ async function renderNotifPanel(){
   el.innerHTML=data.map(a=>{
     const d=new Date(a.data+'T00:00:00');
     const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
-    const restante=Math.max(0,(a.servico?.preco||a.valor||0)-SINAL_VALOR);
+    const restante=Math.max(0,(a.valor||a.servico?.preco||0)-SINAL_VALOR);
     const pendH=Math.floor((Date.now()-new Date(a.created_at).getTime())/3600000);
     const pendStr=pendH<1?'há menos de 1h':pendH===1?'há 1h':`há ${pendH}h`;
     const quaseExp=pendH>=20;
@@ -355,6 +355,32 @@ function initCliente(){
   }
   // Obrigar telefone
   if(!profile?.tel){ show('modal-phone'); }
+
+  // Restaura tela de confirmação se o app foi reiniciado logo após um agendamento
+  // (acontece quando o iOS/Android mata o PWA ao abrir o WhatsApp)
+  const _ps=localStorage.getItem('ffiuza_pending_success');
+  if(_ps){
+    try{
+      const d=JSON.parse(_ps);
+      if(Date.now()-d.ts<10*60*1000){
+        document.getElementById('sc-serv').textContent=d.servLabel;
+        document.getElementById('sc-data').textContent=d.dataFmt;
+        document.getElementById('sc-hora').textContent=d.bkHora;
+        document.getElementById('sc-val').textContent=fmtMoney(d.totalPreco);
+        document.getElementById('sc-sinal').textContent=`R$ ${SINAL_VALOR},00`;
+        document.getElementById('sc-restante').textContent=fmtMoney(d.restante);
+        document.getElementById('sc-pag').textContent=d.bkPagamento;
+        document.getElementById('wa-salon-link').href=d.waSalonHref;
+        CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
+        show('cli-success');
+        document.getElementById('cntab-home')?.classList.add('active');
+        initClienteRealtime();
+        return;
+      }
+    }catch(e){}
+    localStorage.removeItem('ffiuza_pending_success');
+  }
+
   cliTab('home');
   initClienteRealtime();
 }
@@ -369,6 +395,7 @@ function cliIrAgendar(servId){
 }
 
 function cliTab(tab){
+  if(tab!=='success') localStorage.removeItem('ffiuza_pending_success');
   CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
   show('cli-'+tab);
   document.getElementById('cntab-'+tab)?.classList.add('active');
@@ -497,7 +524,7 @@ async function cliRenderHist(){
     const d=new Date(a.data+'T00:00:00');
     const dw=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
     const bc=a.status==='concluido'?'badge-green':a.status==='cancelado'?'badge-red':a.status==='pendente'?'badge-gold':a.status==='faltante'?'badge-gray':'badge-tan';
-    const bl=a.status==='concluido'?'✅ Concluído':a.status==='cancelado'?'Cancelado':a.status==='pendente'?'⏳ Aguardando Pix':a.status==='faltante'?'👻 Faltou':'Agendado';
+    const bl=a.status==='concluido'?'✅ Concluído':a.status==='cancelado'?'Cancelado':a.status==='pendente'?'⏳ Aguardando confirmação':a.status==='faltante'?'👻 Faltou':'Agendado';
     const restante=a.status==='pendente'?`<div style="font-size:.7rem;color:var(--goldt);margin-top:2px">Sinal: R$${SINAL_VALOR} · Restante: ${fmtMoney(Math.max(0,(a.servico?.preco||0)-SINAL_VALOR))}</div>`:'';
     return `<div class="appt-row">
       <div class="appt-dot ${a.status}"></div>
@@ -794,7 +821,7 @@ async function bkConfirm(){
 
   const obs=document.getElementById('bk-obs').value;
   const dataFmt=new Date(bkData+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n⏱️ ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (enviado — aguardando sua confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
+  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n⏱️ ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (aguardando confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
   const clientePhone=(profile.tel||'').replace(/\D/g,'');
   const msgCliente=`Olá ${profile.nome.split(' ')[0]}! 😊 Recebemos seu pedido de agendamento na *Fiuza Nails* 💅\n\n💅 *${servLabel}*\n📅 ${fmtDate(bkData)} às ${bkHora}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* — recebido ✅ aguardando confirmação\n💰 Restante no dia: *${fmtMoney(restante)}*\n💳 Pagamento restante: *${bkPagamento}*\n\nAssim que confirmarmos o Pix, seu horário estará reservado! ✨\n_@ffiuza_nails_`;
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
@@ -823,6 +850,14 @@ async function bkConfirm(){
   CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
   show('cli-success');
   document.getElementById('cntab-home')?.classList.add('active');
+
+  // Persiste estado no localStorage — se o PWA for morto ao abrir o WhatsApp (iOS/Android),
+  // o app restaura a tela de confirmação ao reiniciar em vez de mostrar tela branca
+  localStorage.setItem('ffiuza_pending_success', JSON.stringify({
+    servLabel, dataFmt, bkHora,
+    totalPreco, restante, bkPagamento,
+    waSalonHref, ts: Date.now()
+  }));
 
   // Abre WhatsApp por último — tela de sucesso já está montada antes de sair do app
   window.open(waSalonHref,'_blank');
