@@ -827,11 +827,10 @@ async function bkConfirm(){
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
-  // Abre WhatsApp ANTES do await — chamada direta ao clique do usuário evita
-  // que o browser trate como popup e navegue a janela do PWA para fora do app.
-  // try/catch para que uma falha aqui nunca impeça o agendamento de ser salvo.
-  try{ window.open(waSalonHref,'_blank'); }catch(e){}
-
+  // ORDEM CRÍTICA para o iOS standalone (app instalado no iPhone):
+  // 1º salvar no banco, 2º gravar o localStorage, 3º mostrar o comprovante,
+  // e SÓ ENTÃO abrir o WhatsApp. Assim, quando o iPhone recarregar o app ao
+  // voltar do WhatsApp, tudo já está salvo e a tela de confirmação é restaurada.
   const btn=document.getElementById('bk-cf-btn'); btn.disabled=true;
   const{error}=await sb.from('agendamentos').insert({
     cliente_id:user.id,
@@ -852,17 +851,32 @@ async function bkConfirm(){
   document.getElementById('sc-pag').textContent=bkPagamento;
   document.getElementById('wa-salon-link').href=waSalonHref;
 
-  CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
-  show('cli-success');
-  document.getElementById('cntab-home')?.classList.add('active');
-
-  // Salva no localStorage para restaurar a tela de confirmação caso o PWA seja
-  // reiniciado ao voltar do WhatsApp (comportamento iOS com apps em standalone)
+  // Grava o estado ANTES de abrir o WhatsApp — garante que o iPhone tenha o que
+  // restaurar mesmo que descarte o app ao trocar para o WhatsApp
   localStorage.setItem('ffiuza_pending_success', JSON.stringify({
     servLabel, dataFmt, bkHora,
     totalPreco, restante, bkPagamento,
     waSalonHref, ts: Date.now()
   }));
+
+  CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
+  show('cli-success');
+  document.getElementById('cntab-home')?.classList.add('active');
+
+  // Abre o WhatsApp por último. Um pequeno atraso garante que a tela de sucesso
+  // já foi pintada antes de trocar de app.
+  const isStandalone = window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
+  setTimeout(()=>{
+    if(isStandalone){
+      // App instalado (iPhone/Android): window.open é bloqueado silenciosamente,
+      // então navega direto. Os dados já estão salvos e o comprovante é restaurado
+      // pelo initCliente quando o app recarregar ao voltar.
+      location.href=waSalonHref;
+    } else {
+      // Navegador comum: abre em nova aba e mantém o app intacto.
+      try{ window.open(waSalonHref,'_blank'); }catch(e){ location.href=waSalonHref; }
+    }
+  }, 120);
 }
 
 // ════════════════════════════════
