@@ -794,9 +794,9 @@ async function bkConfirm(){
 
   const obs=document.getElementById('bk-obs').value;
   const dataFmt=new Date(bkData+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — aguardando Pix:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n⏱️ ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (aguardando)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
+  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n⏱️ ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (enviado — aguardando sua confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
   const clientePhone=(profile.tel||'').replace(/\D/g,'');
-  const msgCliente=`Olá ${profile.nome.split(' ')[0]}! 😊 Recebemos seu pedido de agendamento na *Fiuza Nails* 💅\n\n💅 *${servLabel}*\n📅 ${fmtDate(bkData)} às ${bkHora}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* — aguardando verificação\n💰 Restante no dia: *${fmtMoney(restante)}*\n💳 Pagamento restante: *${bkPagamento}*\n\nAssim que confirmarmos o Pix, seu horário estará reservado! ✨\n_@ffiuza_nails_`;
+  const msgCliente=`Olá ${profile.nome.split(' ')[0]}! 😊 Recebemos seu pedido de agendamento na *Fiuza Nails* 💅\n\n💅 *${servLabel}*\n📅 ${fmtDate(bkData)} às ${bkHora}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* — recebido ✅ aguardando confirmação\n💰 Restante no dia: *${fmtMoney(restante)}*\n💳 Pagamento restante: *${bkPagamento}*\n\nAssim que confirmarmos o Pix, seu horário estará reservado! ✨\n_@ffiuza_nails_`;
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
@@ -1222,7 +1222,7 @@ function admApptHtml(a){
   const bl=a.status==='concluido'?'Concluído':a.status==='cancelado'?'Cancelado':isPend?'⏳ Pix pendente':isFalt?'👻 Faltou':'Agendado';
   const wa=a.cliente?.tel?.replace(/\D/g,'');
   const servNome=resolveServNomes(a,servicosAll);
-  const reminderMsg=`Olá ${(a.cliente?.nome||'').split(' ')[0]}! 😊 Lembrete do seu agendamento *amanhã* na *Fiuza Nails* 💅\n\n💅 *${servNome}*\n📅 ${fmtDate(a.data)} às ${fmtH(a.hora)}\n\nAguardamos você! ✨\n_@ffiuza_nails_`;
+  const reminderMsg=`📍 *Lembrete de horário.*\n\nOlá ${(a.cliente?.nome||'').split(' ')[0]}! ✨\nTudo bem?\n\nVocê tem um horário agendado *amanhã*.\n\n💅🏻 Se programe!\n⏳ Chegue com 10 minutos de antecedência para beber uma água, ir ao banheiro e se preparar para seu atendimento.\n⏰ Não se atrase! Tolerância máxima de 10 minutos.\n\nEstamos no endereço: *R. Copeia, 814 - São Geraldo*\n\nPodemos confirmar seu agendamento?\n\n_@ffiuza_nails_ 💅`;
   const reminderBtn=wa?`<a href="${waLink('55'+wa,reminderMsg)}" target="_blank" class="btn btn-sm btn-ghost" style="text-decoration:none;padding:7px 9px" title="Lembrete WA">🔔</a>`:'';
   const restante=Math.max(0,(a.valor||a.servico?.preco||0)-SINAL_VALOR);
   const valorInfo=isPend
