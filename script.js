@@ -800,8 +800,6 @@ async function bkConfirm(){
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
-  window.open(waSalonHref,'_blank');
-
   const btn=document.getElementById('bk-cf-btn'); btn.disabled=true;
   const{error}=await sb.from('agendamentos').insert({
     cliente_id:user.id,
@@ -825,6 +823,9 @@ async function bkConfirm(){
   CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
   show('cli-success');
   document.getElementById('cntab-home')?.classList.add('active');
+
+  // Abre WhatsApp por último — tela de sucesso já está montada antes de sair do app
+  window.open(waSalonHref,'_blank');
 }
 
 // ════════════════════════════════
