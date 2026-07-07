@@ -827,6 +827,10 @@ async function bkConfirm(){
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
+  // Abre WhatsApp ANTES do await — chamada direta ao clique do usuário evita
+  // que o browser trate como popup e navegue a janela do PWA para fora do app
+  window.open(waSalonHref,'_blank');
+
   const btn=document.getElementById('bk-cf-btn'); btn.disabled=true;
   const{error}=await sb.from('agendamentos').insert({
     cliente_id:user.id,
@@ -851,16 +855,13 @@ async function bkConfirm(){
   show('cli-success');
   document.getElementById('cntab-home')?.classList.add('active');
 
-  // Persiste estado no localStorage — se o PWA for morto ao abrir o WhatsApp (iOS/Android),
-  // o app restaura a tela de confirmação ao reiniciar em vez de mostrar tela branca
+  // Salva no localStorage para restaurar a tela de confirmação caso o PWA seja
+  // reiniciado ao voltar do WhatsApp (comportamento iOS com apps em standalone)
   localStorage.setItem('ffiuza_pending_success', JSON.stringify({
     servLabel, dataFmt, bkHora,
     totalPreco, restante, bkPagamento,
     waSalonHref, ts: Date.now()
   }));
-
-  // Abre WhatsApp por último — tela de sucesso já está montada antes de sair do app
-  window.open(waSalonHref,'_blank');
 }
 
 // ════════════════════════════════
