@@ -828,8 +828,9 @@ async function bkConfirm(){
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
   // Abre WhatsApp ANTES do await — chamada direta ao clique do usuário evita
-  // que o browser trate como popup e navegue a janela do PWA para fora do app
-  window.open(waSalonHref,'_blank');
+  // que o browser trate como popup e navegue a janela do PWA para fora do app.
+  // try/catch para que uma falha aqui nunca impeça o agendamento de ser salvo.
+  try{ window.open(waSalonHref,'_blank'); }catch(e){}
 
   const btn=document.getElementById('bk-cf-btn'); btn.disabled=true;
   const{error}=await sb.from('agendamentos').insert({
