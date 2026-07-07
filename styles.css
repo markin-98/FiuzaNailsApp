@@ -213,6 +213,10 @@
     .toast{position:fixed;bottom:calc(var(--nav) + 14px);left:50%;transform:translateX(-50%) translateY(16px);background:linear-gradient(135deg,var(--pdk),var(--primary));color:#fff;padding:12px 20px;border-radius:14px;font-size:.85rem;font-weight:700;box-shadow:var(--sh2);opacity:0;transition:all .28s;z-index:400;white-space:nowrap;max-width:calc(100vw - 40px);pointer-events:none;text-align:center}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+    /* ── PIX COPY BTN ── */
+    .pix-copy-btn{background:var(--s3);border:1.5px solid var(--glass-b);border-radius:8px;padding:4px 9px;font-size:.9rem;cursor:pointer;line-height:1;flex-shrink:0;transition:opacity .15s}
+    .pix-copy-btn:active{opacity:.6}
+
     /* ── PWA BANNER ── */
     .pwa-banner{position:fixed;bottom:0;left:0;right:0;z-index:500;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--s2);border-top:1.5px solid var(--glass-b);box-shadow:0 -4px 24px rgba(0,0,0,.15);animation:slideUp .35s ease}
     .pwa-banner.hidden{display:none}

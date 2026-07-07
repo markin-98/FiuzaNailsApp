@@ -195,7 +195,10 @@
               <div style="font-size:.82rem;color:var(--greent);font-weight:800;margin-bottom:8px">Envie o sinal via Pix para reservar seu horário:</div>
               <div class="pix-key-row">
                 <div class="pk-lbl">Chave Pix · Telefone</div>
-                <div class="pk-val" id="bk-pix-key">(31) 98538-6404</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div class="pk-val" id="bk-pix-key">(31) 98538-6404</div>
+                  <button class="pix-copy-btn" onclick="copyPix('bk-pix-key',this)" title="Copiar chave Pix">📋</button>
+                </div>
               </div>
               <div style="background:#25D366;border-radius:10px;padding:11px 13px;margin-top:10px;display:flex;align-items:flex-start;gap:9px">
                 <span style="font-size:1.2rem;flex-shrink:0;line-height:1.3">📲</span>
@@ -237,10 +240,7 @@
         <div class="cf-row" style="border-bottom:none"><span class="cl">Status</span><span class="cv" style="color:var(--gold);font-weight:800">⏳ Aguardando verificação do Pix</span></div>
       </div>
       <a id="wa-salon-link" href="#" target="_blank" class="btn btn-wa btn-full" style="margin-bottom:10px;text-decoration:none">
-        📲 Reenviar mensagem à Fabiana
-      </a>
-      <a id="wa-cliente-link" href="#" target="_blank" class="btn btn-full" style="margin-bottom:10px;text-decoration:none;background:var(--plt);color:var(--pdk)">
-        💅 Reenviar meu comprovante
+        📲 Enviar comprovante à Fabiana
       </a>
       <button class="btn btn-outline btn-full" onclick="cliTab('home')">Voltar ao início</button>
     </div>

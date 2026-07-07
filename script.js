@@ -236,6 +236,14 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 function waLink(phone, msg){ return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`; }
+function copyPix(elId, btn){
+  const txt=document.getElementById(elId)?.textContent?.trim();
+  if(!txt) return;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const orig=btn.textContent; btn.textContent='✅'; btn.disabled=true;
+    setTimeout(()=>{ btn.textContent=orig; btn.disabled=false; },2000);
+  }).catch(()=>toast('⚠️ Não foi possível copiar'));
+}
 function getServIcon(nome){
   const s=[...servicos,...servicosAll].find(x=>x.nome===nome);
   return s?.icone||SERV_ICONS[nome]||'💅';
@@ -793,7 +801,6 @@ async function bkConfirm(){
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
   window.open(waSalonHref,'_blank');
-  window.open(waCliHref,'_blank');
 
   const btn=document.getElementById('bk-cf-btn'); btn.disabled=true;
   const{error}=await sb.from('agendamentos').insert({
@@ -814,7 +821,6 @@ async function bkConfirm(){
   document.getElementById('sc-restante').textContent=fmtMoney(restante);
   document.getElementById('sc-pag').textContent=bkPagamento;
   document.getElementById('wa-salon-link').href=waSalonHref;
-  document.getElementById('wa-cliente-link').href=waCliHref;
 
   CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
   show('cli-success');
