@@ -590,8 +590,11 @@ function bkDone(step, label){
   h.classList.add('done');
 }
 
+// Duração "própria" de um serviço: só conta se for um número positivo.
+// Vazio/0/null = incluso no tempo do serviço principal (não soma tempo).
+function servDur(s){ const d=parseInt(s&&s.duracao); return d>0?d:0; }
 function bkTotalDur(){
-  return bkServs.reduce((sum,s)=>s.nome==='Decoração completa'?sum:sum+(s.duracao||60),0)||60;
+  return bkServs.reduce((sum,s)=>sum+servDur(s),0)||60;
 }
 function bkTotalPreco(){
   return bkServs.reduce((sum,s)=>sum+s.preco,0);
@@ -627,7 +630,7 @@ function bkRenderServs(){
       </div>
       <div class="son">${s.nome}</div>
       <div class="sop">${fmtMoney(s.preco)}</div>
-      ${s.duracao?`<div class="sod">${s.duracao}min${s.nome==='Decoração completa'?' · incluso no tempo':''}</div>`:''}
+      <div class="sod">${servDur(s)?servDur(s)+'min':'incluso no tempo'}</div>
     </div>`).join('');
   bkUpdateServBar();
 }
@@ -1409,7 +1412,7 @@ function admRenderAgServList(){
   if(!bar) return;
   if(admAgServs.length){
     const total=admAgServs.reduce((sum,x)=>sum+x.preco,0);
-    const dur=admAgServs.reduce((sum,x)=>x.nome==='Decoração completa'?sum:sum+(x.duracao||60),0)||60;
+    const dur=admAgServs.reduce((sum,x)=>sum+servDur(x),0)||60;
     bar.style.display='block';
     bar.textContent=`${admAgServs.map(x=>x.nome).join(' + ')} · ${dur}min · ${fmtMoney(total)}`;
     document.getElementById('ag-valor').value=total;
@@ -1433,7 +1436,7 @@ async function admRenderAgTimes(){
   if(!data){ el.innerHTML='<div style="font-size:.8rem;color:var(--t3);padding:4px 0">Selecione uma data primeiro</div>'; return; }
   const horarios=getHorariosData(data);
   if(!horarios.length){ el.innerHTML='<div style="font-size:.8rem;color:var(--t3);padding:4px 0">Dia sem atendimento configurado</div>'; return; }
-  const dur=admAgServs.reduce((sum,x)=>x.nome==='Decoração completa'?sum:sum+(x.duracao||60),0)||60;
+  const dur=admAgServs.reduce((sum,x)=>sum+servDur(x),0)||60;
   const slots=Math.ceil(dur/60);
   const{data:ocp}=await sb.from('agendamentos')
     .select('id,hora,servico:servicos(duracao)')
@@ -1644,7 +1647,7 @@ function admRenderServs(){
       <div class="si2-info">
         <div class="sn">${s.nome}${inativo?` <span style="font-size:.65rem;background:var(--s3);color:var(--t3);padding:2px 6px;border-radius:6px;font-weight:800">INATIVO</span>`:''}</div>
         <div class="si2-bot">
-          <div class="sm">${s.duracao?s.duracao+' min':''}${s.descricao?' · '+s.descricao:''}</div>
+          <div class="sm">${servDur(s)?servDur(s)+' min':'incluso no tempo'}${s.descricao?' · '+s.descricao:''}</div>
           <div class="si2-p">${fmtMoney(s.preco)}</div>
           <div style="display:flex;gap:4px;flex-shrink:0">
             <button class="btn btn-sm btn-ghost" onclick="admEditServ('${s.id}',true)">✏️</button>
@@ -1657,7 +1660,7 @@ function admRenderServs(){
 }
 function admOpenServ(){ editServId=null; ['sv-nome','sv-desc'].forEach(id=>document.getElementById(id).value=''); ['sv-preco','sv-dur'].forEach(id=>document.getElementById(id).value=''); const chk=document.getElementById('sv-ativo'); if(chk) chk.checked=true; const ic=document.getElementById('sv-icone'); if(ic) ic.value=''; admRenderIconePicks(); document.getElementById('sh-serv-title').textContent='✨ Novo Serviço'; openSheet('sh-serv'); }
 function admEditServ(id,all=false){ const lista=all?servicosAll:servicos; const s=lista.find(x=>x.id===id)||servicos.find(x=>x.id===id); if(!s) return; editServId=id; document.getElementById('sv-nome').value=s.nome; document.getElementById('sv-preco').value=s.preco; document.getElementById('sv-dur').value=s.duracao||''; document.getElementById('sv-desc').value=s.descricao||''; const chk=document.getElementById('sv-ativo'); if(chk) chk.checked=s.ativo!==false; const ic=document.getElementById('sv-icone'); if(ic) ic.value=s.icone||''; admRenderIconePicks(); document.getElementById('sh-serv-title').textContent='✏️ Editar Serviço'; openSheet('sh-serv'); }
-async function admSalvarServ(){ const nome=document.getElementById('sv-nome').value.trim(); const preco=parseFloat(document.getElementById('sv-preco').value)||0; const dur=parseInt(document.getElementById('sv-dur').value)||0; const desc=document.getElementById('sv-desc').value.trim(); const ativo=document.getElementById('sv-ativo')?.checked!==false; const icone=document.getElementById('sv-icone')?.value.trim()||null; if(!nome){ toast('Nome é obrigatório'); return; } const payload={nome,preco,duracao:dur,descricao:desc,ativo,icone}; let error; if(editServId){ ({error}=await sb.from('servicos').update(payload).eq('id',editServId)); } else { ({error}=await sb.from('servicos').insert(payload)); } if(error){ toast('Erro: '+error.message); return; } await fetchServs(); await admFetchServicosAll(); closeSheet('sh-serv'); toast('✅ Serviço salvo!'); admRenderServs(); }
+async function admSalvarServ(){ const nome=document.getElementById('sv-nome').value.trim(); const preco=parseFloat(document.getElementById('sv-preco').value)||0; const dur=parseInt(document.getElementById('sv-dur').value)||0; const desc=document.getElementById('sv-desc').value.trim(); const ativo=document.getElementById('sv-ativo')?.checked!==false; const icone=document.getElementById('sv-icone')?.value.trim()||null; if(!nome){ toast('Nome é obrigatório'); return; } const payload={nome,preco,duracao:dur>0?dur:null,descricao:desc,ativo,icone}; let error; if(editServId){ ({error}=await sb.from('servicos').update(payload).eq('id',editServId)); } else { ({error}=await sb.from('servicos').insert(payload)); } if(error){ toast('Erro: '+error.message); return; } await fetchServs(); await admFetchServicosAll(); closeSheet('sh-serv'); toast('✅ Serviço salvo!'); admRenderServs(); }
 async function admDelServ(id){
   if(!confirm('Excluir serviço?')) return;
   const{error}=await sb.from('servicos').delete().eq('id',id);
