@@ -616,7 +616,7 @@ function bkUpdateServBar(){
   const durStr=hrs>0?(mins>0?`${hrs}h ${mins}min`:`${hrs}h`):`${mins}min`;
   const label=bkServs.length===1?bkServs[0].nome:`${bkServs.map(s=>s.nome).join(' + ')}`;
   document.getElementById('bk-bar-label').textContent=label;
-  document.getElementById('bk-bar-dur').textContent=`⏱️ ${durStr} · ${fmtMoney(bkTotalPreco())} total`;
+  document.getElementById('bk-bar-dur').textContent=`🕐 ${durStr} · ${fmtMoney(bkTotalPreco())} total`;
 }
 
 function bkRenderServs(){
@@ -824,7 +824,7 @@ async function bkConfirm(){
 
   const obs=document.getElementById('bk-obs').value;
   const dataFmt=new Date(bkData+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n⏱️ ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (aguardando confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
+  const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n🕐 ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (aguardando confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
   const clientePhone=(profile.tel||'').replace(/\D/g,'');
   const msgCliente=`Olá ${profile.nome.split(' ')[0]}! 😊 Recebemos seu pedido de agendamento na *Fiuza Nails* 💅\n\n💅 *${servLabel}*\n📅 ${fmtDate(bkData)} às ${bkHora}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* — recebido ✅ aguardando confirmação\n💰 Restante no dia: *${fmtMoney(restante)}*\n💳 Pagamento restante: *${bkPagamento}*\n\nAssim que confirmarmos o Pix, seu horário estará reservado! ✨\n_@ffiuza_nails_`;
   const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
