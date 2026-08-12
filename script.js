@@ -220,7 +220,8 @@ function cliRefreshCurrent(){
 }
 
 // ── UTILS ──
-function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function localDs(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayStr(){ return localDs(new Date()); }
 function fmtDate(d){ if(!d) return ''; const[y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
 function fmtMoney(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
 function fmtH(h){ return h?h.slice(0,5):''; }
@@ -1234,15 +1235,15 @@ async function admRenderAgenda(){
   const dow=base.getDay();
   const mon=new Date(base); mon.setDate(base.getDate()-dow+(dow===0?-6:1));
   const days=Array.from({length:7},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
-  const ds0=days[0].toISOString().split('T')[0];
-  const ds6=days[6].toISOString().split('T')[0];
+  const ds0=localDs(days[0]);
+  const ds6=localDs(days[6]);
   const fmt=d=>d.toLocaleDateString('pt-BR',{day:'numeric',month:'short'});
   document.getElementById('adm-week-lbl').textContent=`${fmt(days[0])} – ${fmt(days[6])}`;
   const{data:wk}=await sb.from('agendamentos').select('data').gte('data',ds0).lte('data',ds6).neq('status','cancelado');
   const wkSet=new Set((wk||[]).map(a=>a.data));
   const dns=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   document.getElementById('adm-week').innerHTML=days.map(d=>{
-    const ds=d.toISOString().split('T')[0];
+    const ds=localDs(d);
     const sel=ds===admSelDate;
     return `<div class="dc ${sel?'sel':''}" onclick="admSelDay('${ds}')">
       <div class="dn">${dns[d.getDay()]}</div>
@@ -1609,7 +1610,7 @@ async function checkNoShows(){
   const now=new Date();
   const today=todayStr();
   const yesterday=new Date(now); yesterday.setDate(yesterday.getDate()-1);
-  const yStr=yesterday.toISOString().split('T')[0];
+  const yStr=localDs(yesterday);
 
   const{data}=await sb.from('agendamentos')
     .select('id,hora,data,servico:servicos(duracao)')
@@ -1683,7 +1684,7 @@ async function finTab(periodo, el){
   const sunDt=new Date(monDt); sunDt.setDate(monDt.getDate()+6);
   let from='', to='';
   if(periodo==='hoje'){ from=today; to=today; }
-  else if(periodo==='semana'){ from=monDt.toISOString().split('T')[0]; to=sunDt.toISOString().split('T')[0]; }
+  else if(periodo==='semana'){ from=localDs(monDt); to=localDs(sunDt); }
   else if(periodo==='mes'){ from=`${ano}-${String(mes+1).padStart(2,'0')}-01`; const lastDay=new Date(ano,mes+1,0).getDate(); to=`${ano}-${String(mes+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`; }
   else if(periodo==='data'){
     const f=document.getElementById('fin-date-from').value;
