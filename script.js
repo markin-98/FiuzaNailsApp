@@ -118,7 +118,7 @@ async function renderNotifPanel(){
         <div style="font-size:.82rem;font-weight:900;color:var(--goldt)">⏳ Pix pendente</div>
         <div style="font-size:.66rem;color:${quaseExp?'var(--redt)':'var(--t3)'};font-weight:${quaseExp?800:600};text-align:right;flex-shrink:0">${pendStr}${quaseExp?' ⚠️':''}</div>
       </div>
-      <div style="font-weight:800;font-size:.9rem">${a.cliente?.nome||'—'}</div>
+      <div style="font-weight:800;font-size:.9rem">${esc(a.cliente?.nome)||'—'}</div>
       <div style="font-size:.78rem;color:var(--t2);margin-top:2px">💅 ${a.servico?.nome||'—'}</div>
       <div style="font-size:.76rem;color:var(--t3);margin-top:2px">${dow}, ${fmtDate(a.data)} às ${fmtH(a.hora)} · Restante: <strong>${fmtMoney(restante)}</strong></div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -220,6 +220,7 @@ function cliRefreshCurrent(){
 }
 
 // ── UTILS ──
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function localDs(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function todayStr(){ return localDs(new Date()); }
 function fmtDate(d){ if(!d) return ''; const[y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
@@ -467,7 +468,8 @@ async function cliCancelar(id){
   if(!appt||appt.data<todayStr()){toast('⚠️ Não é possível cancelar agendamento passado');return;}
   if(!['agendado','pendente'].includes(appt.status)){toast('⚠️ Este agendamento não pode ser cancelado');return;}
   if(!confirm('Cancelar este agendamento?')) return;
-  await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
+  const{error}=await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
+  if(error){toast('Erro: '+error.message);return;}
   toast('Agendamento cancelado'); cliRenderHome();
 }
 
@@ -656,12 +658,12 @@ async function bkValidarHoraAposServico(){
   const slots=Math.ceil(dur/60);
 
   const{data:ocp}=await sb.from('agendamentos')
-    .select('hora,servico:servicos(duracao)')
+    .select('hora,duracao_min')
     .eq('data',bkData).neq('status','cancelado');
 
   const takenH=new Set();
   (ocp||[]).forEach(a=>{
-    const d=a.servico?.duracao||60;
+    const d=a.duracao_min||60;
     const sh=Math.ceil(d/60);
     const hh=parseInt(a.hora.split(':')[0]);
     for(let i=0;i<sh;i++) takenH.add(hh+i);
@@ -750,15 +752,15 @@ async function bkRenderTimes(){
   const curDur=bkTotalDur();
   const curSlots=Math.ceil(curDur/60);
 
-  // Fetch booked appts WITH service duration for duration-aware blocking
+  // Fetch booked appts WITH duration for duration-aware blocking
   const{data:ocp}=await sb.from('agendamentos')
-    .select('hora,servico:servicos(duracao)')
+    .select('hora,duracao_min')
     .eq('data',bkData).neq('status','cancelado');
 
   // Build set of blocked hour integers (e.g., 10 blocks 10:00)
   const takenH=new Set();
   (ocp||[]).forEach(a=>{
-    const dur=a.servico?.duracao||60;
+    const dur=a.duracao_min||60;
     const slotsNeeded=Math.ceil(dur/60);
     const hh=parseInt(a.hora.split(':')[0]);
     for(let i=0;i<slotsNeeded;i++) takenH.add(hh+i);
@@ -840,11 +842,19 @@ async function bkConfirm(){
     cliente_id:user.id,
     servico_id:bkServs[0].id,
     servicos_ids:bkServs.map(s=>s.id),
-    data:bkData, hora:bkHora+':00',
+    data:bkData, hora:bkHora+':00', duracao_min:totalDur,
     valor:totalPreco, status:'pendente', obs, sinal_pago:false
   });
   btn.disabled=false;
-  if(error){ toast('Erro ao salvar: '+error.message); return; }
+  if(error){
+    if(error.code==='23P01'){
+      toast('⚠️ Esse horário acabou de ser reservado por outra cliente. Escolha outro horário.');
+      bkHora=null; bkActivate(3); await bkRenderTimes();
+    } else {
+      toast('Erro ao salvar: '+error.message);
+    }
+    return;
+  }
 
   document.getElementById('sc-serv').textContent=servLabel;
   document.getElementById('sc-data').textContent=dataFmt;
@@ -1289,11 +1299,11 @@ function admApptHtml(a){
   return `<div class="aa ${a.status}">
     <div class="aa-top">
       <div class="aa-time">${fmtH(a.hora)}</div>
-      <div class="aa-name">${a.cliente?.nome||'—'}</div>
+      <div class="aa-name">${esc(a.cliente?.nome)||'—'}</div>
       <span class="badge ${bc}" style="flex-shrink:0">${bl}</span>
     </div>
     <div class="aa-bot">
-      <div class="aa-serv">${valorInfo}${a.obs?' · <em>'+a.obs+'</em>':''}</div>
+      <div class="aa-serv">${valorInfo}${a.obs?' · <em>'+esc(a.obs)+'</em>':''}</div>
       <div class="acts">
         ${reminderBtn}
         ${isPend?`<button class="btn btn-sm" style="background:var(--gold);color:#fff;font-size:.75rem;padding:6px 8px" onclick="admConfPix('${a.id}')">✓ Pix</button>`:''}
@@ -1310,7 +1320,8 @@ function admSelDay(ds){ admSelDate=ds; admRenderAgenda(); }
 function admWeek(dir){ admWeekOff+=dir; admRenderAgenda(); }
 
 async function admConcluir(id){
-  await sb.from('agendamentos').update({status:'concluido'}).eq('id',id);
+  const{error}=await sb.from('agendamentos').update({status:'concluido'}).eq('id',id);
+  if(error){toast('Erro: '+error.message);return;}
   toast('✅ Concluído!'); admRenderDayList(); admRenderDash();
 }
 async function admConfPix(id){
@@ -1323,7 +1334,8 @@ async function admConfPix(id){
 }
 async function admDelAgend(id){
   if(!confirm('Excluir agendamento?')) return;
-  await sb.from('agendamentos').delete().eq('id',id);
+  const{error}=await sb.from('agendamentos').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message);return;}
   toast('🗑️ Excluído'); admRenderDayList(); admRenderDash();
 }
 
@@ -1378,17 +1390,20 @@ async function admSalvarAgend(){
   const obs=document.getElementById('ag-obs').value;
   if(!cli||!admAgServs.length||!data||!hora){ toast('⚠️ Preencha todos os campos'); return; }
   const sinalPago=document.getElementById('ag-sinal-pago')?.checked||false;
+  const durMin=admAgServs.reduce((sum,x)=>sum+servDur(x),0)||60;
   const payload={
     cliente_id:cli,
     servico_id:admAgServs[0].id,
     servicos_ids:admAgServs.map(s=>s.id),
-    data,hora:hora+':00',valor,status,obs,sinal_pago:sinalPago
+    data,hora:hora+':00',duracao_min:durMin,valor,status,obs,sinal_pago:sinalPago
   };
   let error;
   if(editAgendId){ ({error}=await sb.from('agendamentos').update(payload).eq('id',editAgendId)); }
   else { ({error}=await sb.from('agendamentos').insert(payload)); }
   if(error){
-    if(error.message?.includes('row-level security')||error.code==='42501'){
+    if(error.code==='23P01'){
+      toast('⚠️ Já existe um agendamento nesse horário. Escolha outro.');
+    } else if(error.message?.includes('row-level security')||error.code==='42501'){
       toast('⚠️ Permissão negada no banco. Rode o SQL de correção de RLS no Supabase.');
     } else {
       toast('Erro: '+error.message);
@@ -1440,12 +1455,12 @@ async function admRenderAgTimes(){
   const dur=admAgServs.reduce((sum,x)=>sum+servDur(x),0)||60;
   const slots=Math.ceil(dur/60);
   const{data:ocp}=await sb.from('agendamentos')
-    .select('id,hora,servico:servicos(duracao)')
+    .select('id,hora,duracao_min')
     .eq('data',data).neq('status','cancelado');
   const takenH=new Set();
   (ocp||[]).forEach(a=>{
     if(a.id===editAgendId) return;
-    const d=a.servico?.duracao||60;
+    const d=a.duracao_min||60;
     const sh=Math.ceil(d/60);
     const hh=parseInt(a.hora.split(':')[0]);
     for(let i=0;i<sh;i++) takenH.add(hh+i);
@@ -1485,9 +1500,9 @@ async function admRenderClis(){
     return `<div class="ci" style="cursor:pointer" onclick="admOpenCli('${c.id}')">
       <div class="ci-av">👩</div>
       <div class="ci-info">
-        <div class="cn">${c.nome||'—'}</div>
-        <div class="cm">${c.email||'—'}</div>
-        ${c.tel?`<div class="cm" style="margin-top:2px">📱 ${c.tel}</div>`:'<div class="cm" style="color:var(--red)">⚠️ Sem telefone</div>'}
+        <div class="cn">${esc(c.nome)||'—'}</div>
+        <div class="cm">${esc(c.email)||'—'}</div>
+        ${c.tel?`<div class="cm" style="margin-top:2px">📱 ${esc(c.tel)}</div>`:'<div class="cm" style="color:var(--red)">⚠️ Sem telefone</div>'}
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;align-items:center" onclick="event.stopPropagation()">
         ${c.tel?`<a href="https://wa.me/55${wa}" target="_blank" class="btn btn-sm btn-wa" style="text-decoration:none">📲</a>`:''}
@@ -1550,9 +1565,9 @@ async function admOpenCli(id){
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">👩</div>
       <div>
-        <div style="font-size:1.05rem;font-weight:900">${cli.nome||'—'}</div>
-        <div style="font-size:.78rem;color:var(--t2)">${cli.email||'—'}</div>
-        ${cli.tel?`<div style="font-size:.78rem;color:var(--t2)">📱 ${cli.tel}</div>`:''}
+        <div style="font-size:1.05rem;font-weight:900">${esc(cli.nome)||'—'}</div>
+        <div style="font-size:.78rem;color:var(--t2)">${esc(cli.email)||'—'}</div>
+        ${cli.tel?`<div style="font-size:.78rem;color:var(--t2)">📱 ${esc(cli.tel)}</div>`:''}
       </div>
       ${wa?`<a href="https://wa.me/55${wa}" target="_blank" class="btn btn-sm btn-wa" style="text-decoration:none;margin-left:auto">📲</a>`:''}
     </div>
@@ -1616,12 +1631,12 @@ async function checkNoShows(){
   const yStr=localDs(yesterday);
 
   const{data}=await sb.from('agendamentos')
-    .select('id,hora,data,servico:servicos(duracao)')
-    .in('status',['agendado','pendente'])
+    .select('id,hora,data,duracao_min')
+    .eq('status','agendado')
     .gte('data',yStr).lte('data',today);
 
   const vencidos=(data||[]).filter(a=>{
-    const dur=(a.servico?.duracao||60);
+    const dur=(a.duracao_min||60);
     const[hh,mm]=(a.hora||'00:00').split(':').map(Number);
     const end=new Date(a.data+'T00:00:00');
     end.setHours(hh,mm+dur,0,0);

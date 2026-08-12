@@ -65,6 +65,28 @@ alter table public.agendamentos add column if not exists sinal_pago boolean defa
 alter table public.agendamentos add column if not exists servicos_ids uuid[] default '{}';
 alter table public.servicos add column if not exists icone text;
 
+-- ── ANTI DOUBLE-BOOKING: impede duas clientes marcarem o mesmo horário ──
+-- Guarda a duração total (min) do agendamento e usa uma exclusion constraint
+-- (nível de banco, à prova de condição de corrida) para bloquear qualquer
+-- sobreposição de horário no mesmo dia, mesmo se duas clientes confirmarem
+-- ao mesmo tempo. Cancelados não contam.
+create extension if not exists btree_gist;
+alter table public.agendamentos add column if not exists duracao_min int not null default 60;
+alter table public.agendamentos add column if not exists periodo tsrange
+  generated always as (
+    tsrange((data + hora)::timestamp, (data + hora)::timestamp + (duracao_min || ' minutes')::interval)
+  ) stored;
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'agendamentos_no_overlap'
+  ) then
+    alter table public.agendamentos
+      add constraint agendamentos_no_overlap
+      exclude using gist (data with =, periodo with &&)
+      where (status <> 'cancelado');
+  end if;
+end $$;
+
 -- ── REALTIME: atualizações ao vivo dos agendamentos ─────────
 -- Permite que o app receba mudanças em tempo real (novo pedido, Pix confirmado,
 -- cancelamento). REPLICA IDENTITY FULL faz o registro antigo vir nos eventos de
@@ -145,6 +167,64 @@ create policy "Agendamentos cliente cancela" on public.agendamentos
 drop policy if exists "Agendamentos admin deleta" on public.agendamentos;
 create policy "Agendamentos admin deleta" on public.agendamentos
   for delete using (public.is_admin());
+
+-- ── SEGURANÇA: impede escalonamento de privilégio e fraude de status ──
+-- As policies acima usam só "using", sem "with check", então uma cliente
+-- autenticada podia chamar update() direto pelo console do navegador e:
+--   1) virar admin (profiles.role)
+--   2) marcar o próprio Pix como pago / agendamento como concluído
+--      (sinal_pago, status) sem a Fabiana verificar nada.
+-- Os triggers abaixo bloqueiam essas alterações quando quem faz a
+-- alteração não é admin.
+
+create or replace function public.prevent_role_self_change()
+returns trigger as $$
+begin
+  if not public.is_admin() and new.role is distinct from old.role then
+    new.role := old.role;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_prevent_role_change on public.profiles;
+create trigger trg_prevent_role_change
+  before update on public.profiles
+  for each row execute procedure public.prevent_role_self_change();
+
+drop policy if exists "Agendamentos cliente cria" on public.agendamentos;
+create policy "Agendamentos cliente cria" on public.agendamentos
+  for insert with check (
+    public.is_admin()
+    or (cliente_id = auth.uid() and status = 'pendente' and sinal_pago = false)
+  );
+
+create or replace function public.restrict_agendamento_update()
+returns trigger as $$
+begin
+  if public.is_admin() then
+    return new;
+  end if;
+  -- cliente só pode cancelar o próprio agendamento; mais nada muda
+  if old.status = 'cancelado'
+     or new.status <> 'cancelado'
+     or new.cliente_id is distinct from old.cliente_id
+     or new.data is distinct from old.data
+     or new.hora is distinct from old.hora
+     or new.valor is distinct from old.valor
+     or new.sinal_pago is distinct from old.sinal_pago
+     or new.servico_id is distinct from old.servico_id
+  then
+    raise exception 'Alteração não permitida para cliente';
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists trg_restrict_agendamento_update on public.agendamentos;
+create trigger trg_restrict_agendamento_update
+  before update on public.agendamentos
+  for each row execute procedure public.restrict_agendamento_update();
 
 -- Salon config
 drop policy if exists "Config leitura" on public.salon_config;
