@@ -194,15 +194,19 @@ async function ativarPush(){
       : '🔒 Bloqueado. Toque no 🔒 ou ⓘ ao lado do endereço do site e permita notificações');
     return;
   }
-  if(!swReg) swReg=await registerSW();
-  if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'+(swRegErr?': '+swRegErr:'')); return; }
-
+  // Pede a permissão ANTES de qualquer outro await (registrar o service worker
+  // fica pra depois) — no Safari/iOS, um await antes pode "gastar" o toque do
+  // botão e o sistema nega sem nem mostrar a caixinha de permissão.
   const perm=await Notification.requestPermission();
   if(perm!=='granted'){
     toast(perm==='denied'?'⚠️ Notificações bloqueadas — ative nas configurações do navegador/app':'⚠️ Permissão não concedida');
     await refreshPushUI();
     return;
   }
+
+  if(!swReg) swReg=await registerSW();
+  if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'+(swRegErr?': '+swRegErr:'')); return; }
+
   try{
     let sub=await swReg.pushManager.getSubscription();
     if(!sub){
