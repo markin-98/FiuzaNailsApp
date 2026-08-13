@@ -117,17 +117,34 @@ function pushRequerInstalarIOS(){
   return isIOS && !isStandalone;
 }
 
-// Mostra o card só quando ainda não está ativo neste aparelho (chamado ao abrir a aba)
+// Mostra o card só quando ainda não está ativo neste aparelho (chamado ao abrir a aba).
+// Quando já foi bloqueado, o navegador NUNCA deixa pedir de novo por código —
+// então em vez de um botão "Ativar" que só falha, mostra que está bloqueado
+// e o botão vira "Como desbloquear" (ativarPush() explica o passo a passo).
 async function refreshPushUI(){
   const cards=pushCardEls();
   if(!('Notification' in window) || !('PushManager' in window)){ cards.forEach(c=>c.classList.add('hidden')); return; }
+  if(Notification.permission==='denied'){
+    cards.forEach(c=>{
+      c.classList.remove('hidden');
+      const txt=c.querySelector('.push-card-txt'); if(txt) txt.textContent='Notificações bloqueadas neste aparelho';
+      const ic=c.querySelector('.push-card-ic'); if(ic) ic.textContent='🔕';
+      const btn=c.querySelector('button'); if(btn) btn.textContent='Como desbloquear';
+    });
+    return;
+  }
   let ativo=false;
   if(Notification.permission==='granted'){
     if(!swReg) swReg=await registerSW();
     const sub=await swReg?.pushManager.getSubscription();
     ativo=!!sub;
   }
-  cards.forEach(c=>c.classList.toggle('hidden',ativo));
+  cards.forEach(c=>{
+    c.classList.toggle('hidden',ativo);
+    const txt=c.querySelector('.push-card-txt'); if(txt) txt.textContent='Ativar notificações no aparelho';
+    const ic=c.querySelector('.push-card-ic'); if(ic) ic.textContent='🔔';
+    const btn=c.querySelector('button'); if(btn) btn.textContent='Ativar';
+  });
 }
 
 // Modal centralizado, mostrado toda vez que o app abre pra quem ainda não
@@ -165,6 +182,16 @@ async function ativarPush(){
   }
   if(pushRequerInstalarIOS()){
     toast('📲 Instale o app na Tela de Início primeiro (toque em Compartilhar → Adicionar à Tela de Início) pra poder ativar notificações');
+    return;
+  }
+  // Já bloqueado antes: chamar requestPermission() de novo nem mostra o
+  // pedido, só devolve "denied" na hora — o navegador não deixa insistir por
+  // código. Só quem consegue desbloquear é a própria pessoa, manualmente.
+  if(Notification.permission==='denied'){
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    toast(isIOS
+      ? '🔒 Bloqueado. No iPhone: Ajustes → Fiuza Nails → Notificações → Permitir (ou apague e adicione o app de novo à Tela de Início)'
+      : '🔒 Bloqueado. Toque no 🔒 ou ⓘ ao lado do endereço do site e permita notificações');
     return;
   }
   if(!swReg) swReg=await registerSW();
