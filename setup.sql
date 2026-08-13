@@ -210,14 +210,23 @@ begin
   end if;
 
   if evento is not null then
-    select decrypted_secret into secret from vault.decrypted_secrets where name='webhook_secret';
-    if secret is not null then
-      perform net.http_post(
-        url:='https://yjslyloaydufvneaauqm.supabase.co/functions/v1/notify-agendamento',
-        headers:=jsonb_build_object('Content-Type','application/json','x-webhook-secret',secret),
-        body:=jsonb_build_object('agendamento_id',new.id,'evento',evento)
-      );
-    end if;
+    -- BLINDAGEM: notificação é um "extra" — nunca pode derrubar o agendamento
+    -- em si. Se o pg_net/Vault falhar por qualquer motivo (extensão não
+    -- habilitada, segredo não criado, etc.), só registra um aviso no log e
+    -- segue a vida; sem isso, um erro aqui desfazia o INSERT/UPDATE inteiro
+    -- (a cliente achava que tinha marcado e não tinha marcado nada).
+    begin
+      select decrypted_secret into secret from vault.decrypted_secrets where name='webhook_secret';
+      if secret is not null then
+        perform net.http_post(
+          url:='https://yjslyloaydufvneaauqm.supabase.co/functions/v1/notify-agendamento',
+          headers:=jsonb_build_object('Content-Type','application/json','x-webhook-secret',secret),
+          body:=jsonb_build_object('agendamento_id',new.id,'evento',evento)
+        );
+      end if;
+    exception when others then
+      raise warning 'notify_agendamento_change: falha ao notificar (%): %', evento, sqlerrm;
+    end;
   end if;
   return new;
 end;

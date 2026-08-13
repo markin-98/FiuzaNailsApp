@@ -210,7 +210,7 @@
     .empty p{font-size:.86rem}
 
     /* ── TOAST ── */
-    .toast{position:fixed;bottom:calc(var(--nav) + 14px);left:50%;transform:translateX(-50%) translateY(16px);background:linear-gradient(135deg,var(--pdk),var(--primary));color:#fff;padding:12px 20px;border-radius:14px;font-size:.85rem;font-weight:700;box-shadow:var(--sh2);opacity:0;transition:all .28s;z-index:400;white-space:nowrap;max-width:calc(100vw - 40px);pointer-events:none;text-align:center}
+    .toast{position:fixed;bottom:calc(var(--nav) + 14px);left:50%;transform:translateX(-50%) translateY(16px);background:linear-gradient(135deg,var(--pdk),var(--primary));color:#fff;padding:12px 20px;border-radius:14px;font-size:.85rem;font-weight:700;box-shadow:var(--sh2);opacity:0;transition:all .28s;z-index:400;white-space:normal;max-width:calc(100vw - 40px);width:max-content;pointer-events:none;text-align:center}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
     /* ── PIX COPY BTN ── */
