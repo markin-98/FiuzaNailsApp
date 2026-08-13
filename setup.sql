@@ -72,10 +72,66 @@ alter table public.servicos add column if not exists icone text;
 -- ao mesmo tempo. Cancelados não contam.
 create extension if not exists btree_gist;
 alter table public.agendamentos add column if not exists duracao_min int not null default 60;
-alter table public.agendamentos add column if not exists periodo tsrange
-  generated always as (
-    tsrange((data + hora)::timestamp, (data + hora)::timestamp + (duracao_min || ' minutes')::interval)
-  ) stored;
+alter table public.agendamentos add column if not exists periodo tsrange;
+
+-- periodo não pode ser "generated always" porque o Postgres recusa a expressão
+-- (erro 42P17: generation expression is not immutable); um trigger resolve igual.
+create or replace function public.set_agendamento_periodo()
+returns trigger as $$
+begin
+  new.periodo := tsrange(
+    (new.data + new.hora)::timestamp,
+    (new.data + new.hora)::timestamp + (new.duracao_min || ' minutes')::interval
+  );
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_set_agendamento_periodo on public.agendamentos;
+create trigger trg_set_agendamento_periodo
+  before insert or update on public.agendamentos
+  for each row execute procedure public.set_agendamento_periodo();
+
+-- BACKFILL: recalcula duracao_min a partir da duração real dos serviços do agendamento.
+-- Agendamentos criados antes da coluna duracao_min existir ficaram todos com o valor
+-- padrão da coluna (60min), mesmo quando o serviço real dura mais — isso fazia o app
+-- liberar horários que na verdade estavam ocupados (ex: serviço de 120min marcado às
+-- 9h deixava as 10h aparecerem livres). Idempotente: pode rodar sempre, sem risco.
+--
+-- O UPDATE abaixo passa pelo trigger trg_restrict_agendamento_update (definido mais
+-- adiante neste arquivo), que bloqueia updates de quem não é admin — e rodando pelo
+-- SQL Editor não existe sessão logada, então is_admin() dá falso e o trigger barra
+-- o backfill com "Alteração não permitida para cliente". Por isso ele é desligado
+-- durante o backfill e religado logo depois (o "if exists" evita erro caso essa seja
+-- a primeira vez que o arquivo roda e o trigger ainda não tenha sido criado).
+do $$ begin
+  if exists (select 1 from pg_trigger where tgname='trg_restrict_agendamento_update' and tgrelid='public.agendamentos'::regclass) then
+    execute 'alter table public.agendamentos disable trigger trg_restrict_agendamento_update';
+  end if;
+end $$;
+
+update public.agendamentos a
+set duracao_min = coalesce((
+  select nullif(sum(coalesce(nullif(s.duracao,0),0)),0)
+  from unnest(
+    case when a.servicos_ids is not null and array_length(a.servicos_ids,1) > 0
+      then a.servicos_ids
+      else array[a.servico_id]
+    end
+  ) as sid
+  join public.servicos s on s.id = sid
+), 60);
+
+update public.agendamentos
+  set periodo = tsrange((data + hora)::timestamp, (data + hora)::timestamp + (duracao_min || ' minutes')::interval)
+  where periodo is null or periodo is distinct from tsrange((data + hora)::timestamp, (data + hora)::timestamp + (duracao_min || ' minutes')::interval);
+
+do $$ begin
+  if exists (select 1 from pg_trigger where tgname='trg_restrict_agendamento_update' and tgrelid='public.agendamentos'::regclass) then
+    execute 'alter table public.agendamentos enable trigger trg_restrict_agendamento_update';
+  end if;
+end $$;
+
 do $$ begin
   if not exists (
     select 1 from pg_constraint where conname = 'agendamentos_no_overlap'
@@ -134,9 +190,13 @@ returns boolean language sql security definer stable as $$
 $$;
 
 -- Profiles
+-- SEGURANÇA: antes qualquer cliente logada podia ler profiles de TODAS as outras
+-- clientes (nome, email, telefone) direto pelo console do navegador, pois a policy
+-- usava "using (true)". Agora só a própria cliente e a admin podem ler.
 drop policy if exists "Profiles leitura autenticados" on public.profiles;
-create policy "Profiles leitura autenticados" on public.profiles
-  for select to authenticated using (true);
+drop policy if exists "Profiles leitura propria ou admin" on public.profiles;
+create policy "Profiles leitura propria ou admin" on public.profiles
+  for select to authenticated using (auth.uid() = id or public.is_admin());
 
 drop policy if exists "Profiles atualiza proprio" on public.profiles;
 create policy "Profiles atualiza proprio" on public.profiles
@@ -233,63 +293,9 @@ create policy "Config leitura" on public.salon_config for select using (true);
 drop policy if exists "Config escrita admin" on public.salon_config;
 create policy "Config escrita admin" on public.salon_config for all using (public.is_admin());
 
--- ── 6. LIMPEZA DE SERVIÇOS ───────────────────────────────────
--- Remove os serviços fora do catálogo que não têm agendamentos
-delete from public.servicos
-where nome not in (
-  'Remoção', 'Alongamento molde F1', 'Manutenção',
-  'Manutenção de outro local', 'Francesa definitiva',
-  'Decoração completa', 'Blindagem', 'Banho de gel'
-)
-and id not in (
-  select servico_id from public.agendamentos where servico_id is not null
-);
-
--- Desativa os fora do catálogo que têm agendamentos (não pode deletar)
-update public.servicos set ativo = false
-where nome not in (
-  'Remoção', 'Alongamento molde F1', 'Manutenção',
-  'Manutenção de outro local', 'Francesa definitiva',
-  'Decoração completa', 'Blindagem', 'Banho de gel'
-);
-
--- Remove duplicatas (mantém o mais antigo de cada nome)
-delete from public.servicos
-where id in (
-  select id from (
-    select id, row_number() over (partition by nome order by created_at) as rn
-    from public.servicos
-  ) ranked
-  where rn > 1
-);
-
--- Adiciona restrição única por nome (se ainda não existir)
-do $$ begin
-  if not exists (
-    select 1 from information_schema.table_constraints
-    where constraint_name = 'servicos_nome_unique'
-    and table_name = 'servicos'
-  ) then
-    alter table public.servicos add constraint servicos_nome_unique unique (nome);
-  end if;
-end $$;
-
--- ── 7. SEED — Catálogo Fiuza Nails ─────────────────────────
--- Insere os 8 serviços do catálogo; se já existem, atualiza preço/duração/descrição e ativa
-insert into public.servicos (nome, preco, duracao, descricao, ativo) values
-  ('Remoção',                   60,  30, 'Remoção do gel ou alongamento anterior',              true),
-  ('Alongamento molde F1',     120, 120, 'Alongamento em molde F1 — técnica exclusiva',         true),
-  ('Manutenção',               100,  90, 'Manutenção do alongamento (a cada 3 semanas)',         true),
-  ('Manutenção de outro local', 110,  90, 'Manutenção vinda de outro profissional — avaliada previamente', true),
-  ('Francesa definitiva',        20,  20, 'French permanente — cobrada à parte',                true),
-  ('Decoração completa',         35,  30, 'Nail art completa — cobrada à parte do serviço',     true),
-  ('Blindagem',                  80,  60, 'Blindagem protetora para as unhas naturais',         true),
-  ('Banho de gel',              100,  60, 'Reforço e brilho com gel sobre unhas naturais',      true)
-on conflict (nome) do update set
-  preco     = excluded.preco,
-  duracao   = excluded.duracao,
-  descricao = excluded.descricao,
-  ativo     = true;
+-- NOTA: a limpeza/seed do catálogo de serviços foi removida deste arquivo.
+-- Fabiana cadastra, edita e exclui os serviços dela pelo próprio painel admin —
+-- rodar um seed/limpeza fixo aqui de novo apagaria ou duplicaria o que ela mudou.
 
 -- ── 8. ADMIN ─────────────────────────────────────────────────
 -- Define quem é admin (rode após o primeiro login de Fabiana)

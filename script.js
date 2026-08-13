@@ -28,9 +28,24 @@ const FABIANA_PIX   = '(31) 98538-6404'; // Chave Pix (telefone)
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// A Fiuza Nails atende só em Belo Horizonte — "hoje", "este mês" e a saudação
+// sempre seguem o horário de Brasília (UTC-3, sem horário de verão desde 2019),
+// mesmo que o fuso configurado no celular de quem está usando o app esteja errado.
+// Não usar para matemática de instante absoluto (ex: prazo de 24h, timestamps de
+// criação) — ali o Date.now()/epoch já é correto em qualquer fuso.
+const BR_TZ='America/Sao_Paulo';
+function nowBR(){ return new Date(new Date().toLocaleString('en-US',{timeZone:BR_TZ})); }
+// Converte uma data+hora "de Brasília" (como vêm do banco, sem fuso) num instante
+// absoluto real, sempre com offset -03:00 fixo. Usar isso (não Date local) em toda
+// comparação de prazo (mínimo de 24h pra agendar, detecção de no-show) garante que
+// o resultado está correto mesmo que o fuso do aparelho de quem usa esteja errado.
+function brDateTime(dataStr, horaStr){
+  return new Date(`${dataStr}T${(horaStr||'00:00:00').slice(0,5)}:00-03:00`);
+}
+
 let user=null, profile=null, servicos=[], servicosAll=[], salonConfig=null;
-let bkServs=[], bkData=null, bkHora=null, bkMonth=new Date(), bkPagamento=null;
-let admWeekOff=0, admSelDate=todayStr(), editAgendId=null, editServId=null, admHorData=null, admHorMonth=new Date(), admHorDow=null, admAgServs=[];
+let bkServs=[], bkData=null, bkHora=null, bkMonth=nowBR(), bkPagamento=null;
+let admWeekOff=0, admSelDate=todayStr(), editAgendId=null, editServId=null, admHorData=null, admHorMonth=nowBR(), admHorDow=null, admAgServs=[];
 const SALON_SEC_DEFS=[
   {key:'bio',      label:'Sobre Mim',            icon:'👩'},
   {key:'momento',  label:'Seu Momento',           icon:'✨'},
@@ -88,7 +103,8 @@ async function autoCancelExpiredPending(){
   const{data:expired}=await sb.from('agendamentos')
     .select('id').eq('status','pendente').lt('created_at',cutoff);
   if(!expired?.length) return 0;
-  await sb.from('agendamentos').update({status:'cancelado'}).in('id',expired.map(a=>a.id));
+  const{error}=await sb.from('agendamentos').update({status:'cancelado'}).in('id',expired.map(a=>a.id));
+  if(error){ console.error('autoCancelExpiredPending:',error); return 0; }
   await updateNotifCount();
   return expired.length;
 }
@@ -221,8 +237,23 @@ function cliRefreshCurrent(){
 
 // ── UTILS ──
 function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Escapa texto livre (nome, telefone) que vai dentro de um atributo onclick="..."
+// (string JS de aspas simples, dentro de um atributo HTML de aspas duplas).
+// Sem isso, um valor salvo pela própria cliente (ex: telefone) podia injetar
+// JS arbitrário que rodava na sessão da admin ao abrir o perfil da cliente.
+function escJsAttr(s){
+  return String(s??'')
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/\n/g,'\\n');
+}
+// Mantém só dígitos, espaço, +, (), - no telefone — bloqueia texto/HTML no campo
+function sanitizeTel(s){ return String(s??'').replace(/[^\d\s()+-]/g,'').trim(); }
 function localDs(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
-function todayStr(){ return localDs(new Date()); }
+function todayStr(){ return localDs(nowBR()); }
 function fmtDate(d){ if(!d) return ''; const[y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
 function fmtMoney(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2}); }
 function fmtH(h){ return h?h.slice(0,5):''; }
@@ -291,19 +322,21 @@ function renderHomeServs(){
     </div>`).join('');
 }
 
+// Deduplica por nome (mantém o primeiro de cada nome) — usado ao carregar servicos
+function dedupByNome(list){
+  const seen=new Set();
+  return list.filter(s=>{if(seen.has(s.nome))return false;seen.add(s.nome);return true;});
+}
 async function admFetchServicosAll(){
-  const{data}=await sb.from('servicos').select('*').order('nome');
-  servicosAll=data||[];
+  const{data,error}=await sb.from('servicos').select('*').order('nome');
+  if(error) console.error('admFetchServicosAll:',error);
+  servicosAll=dedupByNome(data||[]);
 }
 async function fetchServs(){
   const{data,error}=await sb.from('servicos').select('*').order('nome');
   if(error) console.error('fetchServs:',error);
-  // Deduplica por nome (mantém o primeiro de cada nome)
-  const seen=new Set();
-  const dedup=(list)=>list.filter(s=>{if(seen.has(s.nome))return false;seen.add(s.nome);return true;});
-  servicosAll=dedup(data||[]);
-  seen.clear();
-  servicos=dedup((data||[]).filter(s=>s.ativo!==false));
+  servicosAll=dedupByNome(data||[]);
+  servicos=servicosAll.filter(s=>s.ativo!==false);
 }
 async function fetchSalonConfig(){
   try{
@@ -331,9 +364,10 @@ function route(){
 
 // ── PHONE ──
 async function salvarTelefone(){
-  const tel=document.getElementById('phone-input').value.trim();
+  const tel=sanitizeTel(document.getElementById('phone-input').value);
   if(!tel){ toast('⚠️ Digite seu WhatsApp'); return; }
-  await sb.from('profiles').update({tel}).eq('id',user.id);
+  const{error}=await sb.from('profiles').update({tel}).eq('id',user.id);
+  if(error){ toast('Erro ao salvar: '+error.message); return; }
   profile.tel=tel;
   hide('modal-phone');
   toast('✅ Salvo!');
@@ -346,7 +380,7 @@ function initCliente(){
   show('app-cliente');
   const nome=profile?.nome||user.email;
   document.getElementById('cli-nome-top').textContent=nome.split(' ')[0];
-  document.getElementById('cli-date-top').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('cli-date-top').textContent=nowBR().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('cli-pnome').textContent=nome;
   document.getElementById('cli-pemail').textContent=user.email;
   document.getElementById('cli-ptel').value=profile?.tel||'';
@@ -538,7 +572,7 @@ async function cliRenderHist(){
 }
 
 async function cliSalvarPerfil(){
-  const tel=document.getElementById('cli-ptel').value.trim();
+  const tel=sanitizeTel(document.getElementById('cli-ptel').value);
   const{error}=await sb.from('profiles').update({tel}).eq('id',user.id);
   if(error){toast('Erro ao salvar: '+error.message);return;}
   profile.tel=tel; toast('✅ Perfil salvo!');
@@ -552,7 +586,7 @@ function bkSelPag(nome, chipId){
 }
 
 function bkInit(preSelId=null){
-  bkServs=[]; bkData=null; bkHora=null; bkPagamento=null; bkMonth=new Date();
+  bkServs=[]; bkData=null; bkHora=null; bkPagamento=null; bkMonth=nowBR();
   bkReset();
   if(servicos.length>0){
     bkRenderServs();
@@ -722,8 +756,7 @@ function bkRenderDates(){
     const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const diaHors=getHorariosData(ds);
     const lastHr=diaHors[diaHors.length-1]||null;
-    const[lh,lm]=lastHr?lastHr.split(':').map(Number):[23,59];
-    const lastSlotDt=new Date(y,m,d,lh,lm);
+    const lastSlotDt=brDateTime(ds,lastHr||'23:59');
     const off=!diaHors.length||lastSlotDt<=minTime;
     const sel=bkData===ds;
     html+=`<div class="cal-day ${sel?'sel':''} ${off?'off':''}" onclick="${off?'':'bkSelData(\''+ds+'\')'}">${d}</div>`;
@@ -779,7 +812,7 @@ async function bkRenderTimes(){
     }
 
     // 24hrs advance check
-    const slotDt=new Date(bkData+'T'+h+':00');
+    const slotDt=brDateTime(bkData,h);
     if(slotDt<=minTime) blocked=true;
 
     const sel=bkHora===h;
@@ -899,10 +932,10 @@ async function bkConfirm(){
 function initAdmin(){
   show('app-admin');
   const nome=profile?.nome||user.email;
-  const h=new Date().getHours();
+  const h=nowBR().getHours();
   const g=h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';
   document.getElementById('adm-greet').textContent=`${g}, ${nome.split(' ')[0]}! 💅`;
-  document.getElementById('adm-date').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
+  document.getElementById('adm-date').textContent=nowBR().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});
   document.getElementById('adm-pnome').textContent=nome;
   document.getElementById('adm-pemail').textContent=user.email;
   const FABIANA_FOTO='fabiana.jpg';
@@ -1232,7 +1265,7 @@ async function admRenderDash(){
   document.getElementById('ds-hoje').textContent=(hoje||[]).length;
   document.getElementById('ds-rec').textContent=fmtMoney(rec);
   document.getElementById('ds-conc').textContent=conc.length;
-  const now=new Date(),mes=now.getMonth(),ano=now.getFullYear();
+  const now=nowBR(),mes=now.getMonth(),ano=now.getFullYear();
   const{data:ml}=await sb.from('agendamentos').select('valor')
     .gte('data',`${ano}-${String(mes+1).padStart(2,'0')}-01`)
     .lt('data',`${ano}-${String(mes+2).padStart(2,'0')}-01`).eq('status','concluido');
@@ -1244,7 +1277,7 @@ async function admRenderDash(){
 }
 
 async function admRenderAgenda(){
-  const base=new Date(); base.setDate(base.getDate()+admWeekOff*7);
+  const base=nowBR(); base.setDate(base.getDate()+admWeekOff*7);
   const dow=base.getDay();
   const mon=new Date(base); mon.setDate(base.getDate()-dow+(dow===0?-6:1));
   const days=Array.from({length:7},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
@@ -1360,9 +1393,9 @@ async function admEditAgend(id){
   editAgendId=id;
   await admPopSelects();
   if(a.servicos_ids&&a.servicos_ids.length>0){
-    admAgServs=servicos.filter(s=>a.servicos_ids.includes(s.id));
+    admAgServs=a.servicos_ids.map(id=>servicosAll.find(s=>s.id===id)).filter(Boolean);
   } else if(a.servico_id){
-    const s=servicos.find(x=>x.id===a.servico_id);
+    const s=servicosAll.find(x=>x.id===a.servico_id);
     admAgServs=s?[s]:[];
   } else { admAgServs=[]; }
   document.getElementById('ag-cli').value=a.cliente_id;
@@ -1415,7 +1448,10 @@ async function admSalvarAgend(){
 }
 
 function admRenderAgServList(){
-  const list=servicos.filter(s=>s.ativo!==false);
+  // Inclui serviços inativos que já estejam selecionados (ex: editando um agendamento
+  // antigo cujo serviço foi desativado depois) — senão a seleção some e trava o salvamento.
+  const selIds=new Set(admAgServs.map(s=>s.id));
+  const list=servicosAll.filter(s=>s.ativo!==false||selIds.has(s.id));
   document.getElementById('ag-serv-list').innerHTML=list.map(s=>{
     const sel=admAgServs.find(x=>x.id===s.id);
     return `<div class="so ${sel?'sel':''}" onclick="admToggleAgServ('${s.id}')">
@@ -1438,7 +1474,7 @@ function admRenderAgServList(){
 }
 
 function admToggleAgServ(id){
-  const s=servicos.find(x=>x.id===id); if(!s) return;
+  const s=servicosAll.find(x=>x.id===id); if(!s) return;
   const idx=admAgServs.findIndex(x=>x.id===id);
   if(idx>=0) admAgServs.splice(idx,1); else admAgServs.push(s);
   admRenderAgServList();
@@ -1560,7 +1596,8 @@ async function admOpenCli(id){
   }).join('');
 
   const wa=cli.tel?.replace(/\D/g,'');
-  const nomeEsc=(cli.nome||'').replace(/'/g,"\\'");
+  const nomeEsc=escJsAttr(cli.nome);
+  const telEsc=escJsAttr(cli.tel||'');
   body.innerHTML=`
     <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
       <div style="width:56px;height:56px;border-radius:50%;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">👩</div>
@@ -1584,7 +1621,7 @@ async function admOpenCli(id){
       </div>
       ${disponiveis>0?`
       <div style="display:flex;gap:8px;align-items:center">
-        <div class="fid-prize clickable" style="flex:1;min-width:0" onclick="admEnviarPremioFid('${nomeEsc}','${cli.tel||''}')" title="Avisar cliente pelo WhatsApp">
+        <div class="fid-prize clickable" style="flex:1;min-width:0" onclick="admEnviarPremioFid('${nomeEsc}','${telEsc}')" title="Avisar cliente pelo WhatsApp">
           🎁 ${disponiveis} Decoraç${disponiveis>1?'ões':'ão'} disponíve${disponiveis>1?'is':'l'}
           <span style="margin-left:auto;font-size:.7rem;background:rgba(0,0,0,.15);padding:2px 7px;border-radius:7px;white-space:nowrap;flex-shrink:0">📲 Avisar</span>
         </div>
@@ -1637,15 +1674,14 @@ async function checkNoShows(){
 
   const vencidos=(data||[]).filter(a=>{
     const dur=(a.duracao_min||60);
-    const[hh,mm]=(a.hora||'00:00').split(':').map(Number);
-    const end=new Date(a.data+'T00:00:00');
-    end.setHours(hh,mm+dur,0,0);
+    const end=new Date(brDateTime(a.data,a.hora).getTime()+dur*60000);
     return end<now;
   });
 
   if(!vencidos.length) return;
   const ids=vencidos.map(a=>a.id);
-  await sb.from('agendamentos').update({status:'faltante'}).in('id',ids);
+  const{error}=await sb.from('agendamentos').update({status:'faltante'}).in('id',ids);
+  if(error){ console.error('checkNoShows:',error); return; }
   toast(`👻 ${ids.length} atendimento${ids.length>1?'s':''} marcado${ids.length>1?'s':''} como faltante`);
   admRenderDayList();
   admRenderDash();
@@ -1681,9 +1717,15 @@ async function admDelServ(id){
   if(!confirm('Excluir serviço?')) return;
   const{error}=await sb.from('servicos').delete().eq('id',id);
   if(error){
-    // FK constraint: tem agendamentos vinculados — desativa em vez de deletar
-    await sb.from('servicos').update({ativo:false}).eq('id',id);
-    toast('⚠️ Serviço desativado (tem agendamentos vinculados)');
+    if(error.code==='23503'){
+      // FK constraint: tem agendamentos vinculados — desativa em vez de deletar
+      const{error:updErr}=await sb.from('servicos').update({ativo:false}).eq('id',id);
+      if(updErr){ toast('Erro: '+updErr.message); return; }
+      toast('⚠️ Serviço desativado (tem agendamentos vinculados)');
+    } else {
+      toast('Erro: '+error.message);
+      return;
+    }
   } else {
     toast('🗑️ Removido');
   }
@@ -1696,7 +1738,7 @@ async function finTab(periodo, el){
   document.querySelectorAll('.fin-tab').forEach(t=>t.classList.remove('active'));
   el?.classList.add('active');
   if(periodo==='data'){ show('fin-date-wrap'); } else { hide('fin-date-wrap'); }
-  const now=new Date(), today=todayStr(), mes=now.getMonth(), ano=now.getFullYear();
+  const now=nowBR(), today=todayStr(), mes=now.getMonth(), ano=now.getFullYear();
   const dow=now.getDay();
   const monDt=new Date(now); monDt.setDate(now.getDate()-dow+(dow===0?-6:1));
   const sunDt=new Date(monDt); sunDt.setDate(monDt.getDate()+6);
