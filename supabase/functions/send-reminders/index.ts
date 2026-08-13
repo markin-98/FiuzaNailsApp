@@ -2,7 +2,7 @@
 // agendamentos confirmados e manda lembrete de 24h e de 1h antes do horário,
 // sem repetir (marca lembrete_24h_enviado/lembrete_1h_enviado depois de mandar).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { fmtData, fmtHora, sendToSubs } from "../_shared/push.ts";
+import { fmtData, fmtHora, sendToSubs, urlParaTab } from "../_shared/push.ts";
 
 const WEBHOOK_SECRET = Deno.env.get("WEBHOOK_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -61,7 +61,8 @@ Deno.serve(async (req) => {
           ? `Olá ${nome}! Você tem ${servNome} marcado amanhã, ${fmtData(a.data)} às ${hora} 💅`
           : `${nome}, seu atendimento de ${servNome} é daqui a 1h (${hora}) 💅`,
         tag: `lembrete-${label}-${a.id}`,
-        url: "./index.html",
+        url: urlParaTab("home"),
+        tab: "home",
       });
 
       await supabase.from("agendamentos").update({ [flagCol]: true }).eq("id", a.id);

@@ -24,6 +24,12 @@ export interface PushPayload {
   body: string;
   tag?: string;
   url?: string;
+  tab?: string; // aba do app pra abrir direto (ex: "home", "historico", "dashboard")
+}
+
+// Monta a url que abre o app já na aba certa, se o app não estiver aberto ainda
+export function urlParaTab(tab?: string) {
+  return tab ? `./index.html?tab=${tab}` : "./index.html";
 }
 
 // Manda pra todas as inscrições de uma vez; se uma inscrição estiver morta

@@ -501,6 +501,26 @@ function route(){
   Promise.all([fetchServs(),fetchSalonConfig()]).then(()=>{
     if(profile.role==='admin') initAdmin();
     else initCliente();
+    aplicarTabDaNotificacao();
+  });
+}
+
+// Se o app abriu por causa de um clique em notificação (sw.js manda ?tab=... na
+// url quando precisa abrir uma janela nova), já entra direto na aba certa.
+function aplicarTabDaNotificacao(){
+  const tab=new URLSearchParams(location.search).get('tab');
+  if(!tab) return;
+  history.replaceState(null,'',location.pathname);
+  setTimeout(()=>irParaTabNotif(tab),50);
+}
+// Se o app JÁ está aberto, o sw.js manda essa mensagem em vez de recarregar a página
+function irParaTabNotif(tab){
+  if(profile?.role==='admin') admTab(tab,document.getElementById('antab-'+tab));
+  else cliTab(tab);
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',e=>{
+    if(e.data?.type==='push-navigate' && e.data.tab) irParaTabNotif(e.data.tab);
   });
 }
 
