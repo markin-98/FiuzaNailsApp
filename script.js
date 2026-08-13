@@ -789,9 +789,11 @@ async function bkValidarHoraAposServico(){
   const dur=bkTotalDur();
   const slots=Math.ceil(dur/60);
 
-  const{data:ocp}=await sb.from('agendamentos')
-    .select('hora,duracao_min')
-    .eq('data',bkData).neq('status','cancelado');
+  // RPC em vez de select direto: RLS só deixa a cliente ler os PRÓPRIOS
+  // agendamentos, então um select direto nunca mostrava o horário ocupado
+  // pelas outras clientes. horarios_ocupados() devolve só hora+duração de
+  // todo mundo (sem nome/telefone), liberado pra qualquer autenticado.
+  const{data:ocp}=await sb.rpc('horarios_ocupados',{p_data:bkData});
 
   const takenH=new Set();
   (ocp||[]).forEach(a=>{
@@ -883,10 +885,10 @@ async function bkRenderTimes(){
   const curDur=bkTotalDur();
   const curSlots=Math.ceil(curDur/60);
 
-  // Fetch booked appts WITH duration for duration-aware blocking
-  const{data:ocp}=await sb.from('agendamentos')
-    .select('hora,duracao_min')
-    .eq('data',bkData).neq('status','cancelado');
+  // RPC em vez de select direto: RLS só deixa a cliente ler os PRÓPRIOS
+  // agendamentos, então nunca aparecia o horário ocupado pelas outras
+  // clientes. horarios_ocupados() devolve só hora+duração de todo mundo.
+  const{data:ocp}=await sb.rpc('horarios_ocupados',{p_data:bkData});
 
   // Build set of blocked hour integers (e.g., 10 blocks 10:00)
   const takenH=new Set();

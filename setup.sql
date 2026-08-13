@@ -159,6 +159,22 @@ do $$ begin
   end if;
 end $$;
 
+-- ── HORÁRIOS OCUPADOS (visível pra qualquer cliente, sem vazar dados) ───────
+-- A policy "Agendamentos cliente ve os seus" só deixa a cliente ler os
+-- PRÓPRIOS agendamentos — correto pra privacidade, mas o app usa essa mesma
+-- consulta pra saber quais horários já estão ocupados no dia, então uma
+-- cliente nunca via os agendamentos de outra e todo horário aparecia livre
+-- pra ela (só travava ao confirmar, pela exclusion constraint). Esta função
+-- devolve só hora+duração de quem está ocupado naquele dia — nada de nome,
+-- telefone ou cliente_id — então pode ser liberada pra qualquer autenticado.
+create or replace function public.horarios_ocupados(p_data date)
+returns table(hora time, duracao_min int)
+language sql security definer stable as $$
+  select hora, duracao_min from public.agendamentos
+  where data = p_data and status <> 'cancelado';
+$$;
+grant execute on function public.horarios_ocupados(date) to authenticated;
+
 -- ── PUSH NOTIFICATIONS ───────────────────────────────────────
 -- Cada aparelho que aceita notificação vira uma linha aqui (endpoint único do
 -- navegador/OS + as chaves de criptografia do Web Push). Usada pelas Edge
