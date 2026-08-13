@@ -108,6 +108,15 @@ registerSW();
 
 function pushCardEls(){ return ['push-card-cli','push-card-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
 
+// No iPhone o Safari só permite push com o app instalado na tela de início —
+// numa aba normal, pedir permissão sempre nega na hora, o que gerava a
+// mensagem enganosa de "ative nas configurações" (não tem nada pra ativar lá).
+function pushRequerInstalarIOS(){
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone=window.navigator.standalone===true || window.matchMedia('(display-mode: standalone)').matches;
+  return isIOS && !isStandalone;
+}
+
 // Mostra o card só quando ainda não está ativo neste aparelho (chamado ao abrir a aba)
 async function refreshPushUI(){
   const cards=pushCardEls();
@@ -128,6 +137,7 @@ async function maybeShowPushBanner(){
   const modal=document.getElementById('push-modal'); if(!modal) return;
   if(sessionStorage.getItem('push_banner_dismissed')) return;
   if(!('Notification' in window) || !('PushManager' in window)) return;
+  if(pushRequerInstalarIOS()) return; // pediria e negaria na hora — só o banner de instalar cuida disso
   if(Notification.permission==='denied') return; // já negou — não insiste
   if(Notification.permission==='granted'){
     if(!swReg) swReg=await registerSW();
@@ -152,6 +162,10 @@ async function ativarPushBanner(){
 async function ativarPush(){
   if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
     toast('⚠️ Este navegador não suporta notificações push'); return;
+  }
+  if(pushRequerInstalarIOS()){
+    toast('📲 Instale o app na Tela de Início primeiro (toque em Compartilhar → Adicionar à Tela de Início) pra poder ativar notificações');
+    return;
   }
   if(!swReg) swReg=await registerSW();
   if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'); return; }
