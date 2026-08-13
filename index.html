@@ -291,6 +291,13 @@
       </div>
       <div style="height:12px"></div>
       <div class="card">
+        <div style="font-weight:900;font-size:.92rem;margin-bottom:4px">🔔 Notificações no aparelho</div>
+        <div style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Receba avisos de confirmação, cancelamento e lembrete de horário, mesmo com o app fechado.</div>
+        <button class="btn btn-primary btn-full" id="push-btn-cli" onclick="ativarPush()">Ativar notificações</button>
+        <div style="font-size:.74rem;color:var(--t3);margin-top:8px;text-align:center" id="push-status-cli"></div>
+      </div>
+      <div style="height:12px"></div>
+      <div class="card">
         <button class="btn btn-danger btn-full" onclick="logout()">Sair da conta</button>
       </div>
     </div>
@@ -499,6 +506,13 @@
         <button class="btn btn-danger btn-full" onclick="logout()">Sair da conta</button>
       </div>
 
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-weight:900;font-size:.92rem;margin-bottom:4px">🔔 Notificações no aparelho</div>
+        <div style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Receba avisos de novo pedido e cancelamento aqui no celular, mesmo com o app fechado.</div>
+        <button class="btn btn-primary btn-full" id="push-btn-adm" onclick="ativarPush()">Ativar notificações</button>
+        <div style="font-size:.74rem;color:var(--t3);margin-top:8px;text-align:center" id="push-status-adm"></div>
+      </div>
+
       <!-- FINANCEIRO -->
       <div class="sec">Financeiro</div>
       <div class="card">
@@ -666,6 +680,6 @@
   </div>
 </div>
 
-<script src="script.js?v=11"></script>
+<script src="script.js?v=12"></script>
 </body>
 </html>

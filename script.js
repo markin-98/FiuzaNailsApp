@@ -86,6 +86,79 @@ function updateThemeIcon(){
 }
 initTheme();
 
+// ── PUSH (notificações mesmo com o app fechado) ──
+// Chave pública VAPID — identifica este app como remetente autorizado. A chave
+// privada correspondente fica só na Edge Function do Supabase (nunca no cliente).
+const VAPID_PUBLIC_KEY='BAtUXdKIvIsTKhy-a4nN_MGEClPLAuRABF6pHu3cpYGLvUJiTmuFkXGmR7yIybIxGgejKSfNfQAwwvcYdbQ_lYU';
+
+function urlBase64ToUint8Array(base64String){
+  const padding='='.repeat((4-base64String.length%4)%4);
+  const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+  const raw=atob(base64);
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
+let swReg=null;
+async function registerSW(){
+  if(!('serviceWorker' in navigator)) return null;
+  try{ swReg=await navigator.serviceWorker.register('sw.js'); return swReg; }
+  catch(e){ console.error('registerSW:',e); return null; }
+}
+registerSW();
+
+function pushStatusEls(){ return ['push-status-cli','push-status-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
+function pushBtnEls(){ return ['push-btn-cli','push-btn-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
+function setPushStatus(msg){ pushStatusEls().forEach(el=>el.textContent=msg); }
+
+// Atualiza o card de notificações do perfil com o estado atual (chamado ao abrir a aba)
+async function refreshPushUI(){
+  if(!('Notification' in window) || !('PushManager' in window)){ setPushStatus('⚠️ Este navegador não suporta notificações'); return; }
+  if(Notification.permission==='denied'){ setPushStatus('⚠️ Bloqueadas — ative nas configurações do navegador/app'); return; }
+  if(Notification.permission==='granted'){
+    if(!swReg) swReg=await registerSW();
+    const sub=await swReg?.pushManager.getSubscription();
+    if(sub){ setPushStatus('✅ Notificações ativas neste aparelho'); pushBtnEls().forEach(b=>b.textContent='Notificações ativadas'); return; }
+  }
+  setPushStatus('');
+  pushBtnEls().forEach(b=>b.textContent='Ativar notificações');
+}
+
+// Pede permissão e inscreve este aparelho — precisa ser chamado direto por um
+// clique do usuário (iOS/Safari não deixa pedir permissão fora de um gesto).
+async function ativarPush(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
+    toast('⚠️ Este navegador não suporta notificações push'); return;
+  }
+  if(!swReg) swReg=await registerSW();
+  if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'); return; }
+
+  const perm=await Notification.requestPermission();
+  if(perm!=='granted'){
+    toast(perm==='denied'?'⚠️ Notificações bloqueadas — ative nas configurações do navegador/app':'⚠️ Permissão não concedida');
+    await refreshPushUI();
+    return;
+  }
+  try{
+    let sub=await swReg.pushManager.getSubscription();
+    if(!sub){
+      sub=await swReg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    const j=sub.toJSON();
+    const{error}=await sb.from('push_subscriptions').upsert({
+      user_id:user.id, endpoint:sub.endpoint, p256dh:j.keys.p256dh, auth:j.keys.auth
+    },{onConflict:'endpoint'});
+    if(error){ toast('Erro ao salvar inscrição: '+error.message); return; }
+    toast('🔔 Notificações ativadas!');
+  }catch(e){
+    console.error('ativarPush:',e);
+    toast('⚠️ Não foi possível ativar as notificações neste aparelho');
+  }
+  await refreshPushUI();
+}
+
 // ── NOTIFICAÇÕES ──
 let notifOpen=false;
 let notifRealtime=null;
@@ -439,7 +512,7 @@ function cliTab(tab){
   if(tab==='agendar')   bkInit(null);
   if(tab==='salon')     initSalonPage();
   if(tab==='historico') cliRenderHist();
-  if(tab==='perfil')    document.getElementById('cli-ptel').value=profile?.tel||'';
+  if(tab==='perfil'){ document.getElementById('cli-ptel').value=profile?.tel||''; refreshPushUI(); }
 }
 
 async function cliRenderHome(){
@@ -955,7 +1028,7 @@ function admTab(tab,el){
   if(tab==='agenda')    admRenderAgenda();
   if(tab==='clientes')  admRenderClis();
   if(tab==='servicos')  { admRenderServs(); admRenderSalonInfo(); }
-  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); }
+  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); refreshPushUI(); }
 }
 function admFabClick(){
   const tab=document.querySelector('.nav-tab.active[id^="antab-"]')?.id?.replace('antab-','');

@@ -12,6 +12,7 @@ catalogo.pdf
 
 # Arquivos internos / de ferramentas
 .claude/
+supabase/.temp/
 
 # Sistema
 Thumbs.db

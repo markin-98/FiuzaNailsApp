@@ -1,0 +1,9 @@
+# As duas functions são chamadas pelo pg_net (trigger e cron), não por um
+# usuário logado — não existe um JWT de sessão Supabase pra mandar. A
+# autenticação é o header x-webhook-secret conferido dentro do código de cada
+# function, por isso o verify_jwt do gateway precisa ficar desligado aqui.
+[functions.notify-agendamento]
+verify_jwt = false
+
+[functions.send-reminders]
+verify_jwt = false

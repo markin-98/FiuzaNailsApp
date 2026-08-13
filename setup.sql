@@ -159,6 +159,97 @@ do $$ begin
   end if;
 end $$;
 
+-- ── PUSH NOTIFICATIONS ───────────────────────────────────────
+-- Cada aparelho que aceita notificação vira uma linha aqui (endpoint único do
+-- navegador/OS + as chaves de criptografia do Web Push). Usada pelas Edge
+-- Functions notify-agendamento e send-reminders pra saber pra onde mandar.
+create table if not exists public.push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references public.profiles(id) on delete cascade not null,
+  endpoint    text not null unique,
+  p256dh      text not null,
+  auth        text not null,
+  created_at  timestamptz default now()
+);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "Push subs - propria" on public.push_subscriptions;
+create policy "Push subs - propria" on public.push_subscriptions
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+-- As Edge Functions leem todas as inscrições usando a service_role key, que
+-- ignora RLS — não precisam de policy de admin aqui.
+
+-- Marca se já foi mandado o lembrete de 24h/1h, pra send-reminders não repetir
+alter table public.agendamentos add column if not exists lembrete_24h_enviado boolean default false;
+alter table public.agendamentos add column if not exists lembrete_1h_enviado boolean default false;
+
+-- ── DISPARO INSTANTÂNEO: novo pedido / Pix confirmado / cancelamento ────────
+-- pg_net manda um POST HTTP pra Edge Function notify-agendamento sempre que um
+-- agendamento é criado ou muda de status relevante. O segredo compartilhado
+-- (guardado no Vault, nunca neste arquivo) autentica a chamada — sem ele
+-- qualquer pessoa poderia chamar a function e mandar notificação falsa.
+--
+-- ⚠️ Antes de rodar isto, crie o segredo UMA VEZ no SQL Editor (não salve esse
+-- comando em nenhum arquivo do repositório):
+--   select vault.create_secret('SEU_SEGREDO_AQUI', 'webhook_secret');
+-- e configure a mesma string como variável de ambiente WEBHOOK_SECRET nas
+-- duas Edge Functions (supabase secrets set WEBHOOK_SECRET=SEU_SEGREDO_AQUI).
+create extension if not exists pg_net;
+
+create or replace function public.notify_agendamento_change()
+returns trigger as $$
+declare
+  evento text;
+  secret text;
+begin
+  if tg_op='INSERT' and new.status='pendente' then
+    evento:='novo_pedido';
+  elsif tg_op='UPDATE' and old.status is distinct from new.status then
+    if new.status='agendado' and old.status='pendente' then evento:='pix_confirmado';
+    elsif new.status='cancelado' then evento:='cancelado';
+    end if;
+  end if;
+
+  if evento is not null then
+    select decrypted_secret into secret from vault.decrypted_secrets where name='webhook_secret';
+    if secret is not null then
+      perform net.http_post(
+        url:='https://yjslyloaydufvneaauqm.supabase.co/functions/v1/notify-agendamento',
+        headers:=jsonb_build_object('Content-Type','application/json','x-webhook-secret',secret),
+        body:=jsonb_build_object('agendamento_id',new.id,'evento',evento)
+      );
+    end if;
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer set search_path = public, vault;
+
+drop trigger if exists trg_notify_agendamento on public.agendamentos;
+create trigger trg_notify_agendamento
+  after insert or update on public.agendamentos
+  for each row execute procedure public.notify_agendamento_change();
+
+-- ── LEMBRETES 24h/1h: roda sozinho a cada 10 minutos ────────────────────────
+-- pg_cron chama a Edge Function send-reminders periodicamente; ela mesma
+-- decide quem está a ~24h ou ~1h do horário marcado e evita duplicar usando
+-- as colunas lembrete_24h_enviado/lembrete_1h_enviado.
+create extension if not exists pg_cron;
+
+do $$ begin
+  if exists (select 1 from cron.job where jobname = 'fiuza-lembretes') then
+    perform cron.unschedule('fiuza-lembretes');
+  end if;
+end $$;
+
+select cron.schedule('fiuza-lembretes', '*/10 * * * *', $cron$
+  select net.http_post(
+    url:='https://yjslyloaydufvneaauqm.supabase.co/functions/v1/send-reminders',
+    headers:=jsonb_build_object(
+      'Content-Type','application/json',
+      'x-webhook-secret',(select decrypted_secret from vault.decrypted_secrets where name='webhook_secret')
+    )
+  );
+$cron$);
+
 -- Fidelidade: contador de prêmios resgatados por cliente
 alter table public.profiles add column if not exists premios_resgatados integer default 0;
 
@@ -263,6 +354,20 @@ create or replace function public.restrict_agendamento_update()
 returns trigger as $$
 begin
   if public.is_admin() then
+    return new;
+  end if;
+  -- A Edge Function de lembretes (send-reminders) marca lembrete_24h_enviado/
+  -- lembrete_1h_enviado usando a service_role key, que não é "admin" pra
+  -- is_admin() (não tem sessão/auth.uid()). Como isso não é sensível, libera
+  -- sempre que só esses dois flags mudam e mais nada.
+  if new.status is not distinct from old.status
+     and new.cliente_id is not distinct from old.cliente_id
+     and new.data is not distinct from old.data
+     and new.hora is not distinct from old.hora
+     and new.valor is not distinct from old.valor
+     and new.sinal_pago is not distinct from old.sinal_pago
+     and new.servico_id is not distinct from old.servico_id
+  then
     return new;
   end if;
   -- cliente só pode cancelar o próprio agendamento; mais nada muda
