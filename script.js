@@ -98,11 +98,11 @@ function urlBase64ToUint8Array(base64String){
   return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
 }
 
-let swReg=null;
+let swReg=null, swRegErr=null;
 async function registerSW(){
   if(!('serviceWorker' in navigator)) return null;
-  try{ swReg=await navigator.serviceWorker.register('sw.js'); return swReg; }
-  catch(e){ console.error('registerSW:',e); return null; }
+  try{ swReg=await navigator.serviceWorker.register('sw.js'); swRegErr=null; return swReg; }
+  catch(e){ console.error('registerSW:',e); swRegErr=e?.message||String(e); return null; }
 }
 registerSW();
 
@@ -195,7 +195,7 @@ async function ativarPush(){
     return;
   }
   if(!swReg) swReg=await registerSW();
-  if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'); return; }
+  if(!swReg){ toast('⚠️ Não foi possível preparar as notificações'+(swRegErr?': '+swRegErr:'')); return; }
 
   const perm=await Notification.requestPermission();
   if(perm!=='granted'){
@@ -219,7 +219,7 @@ async function ativarPush(){
     toast('🔔 Notificações ativadas!');
   }catch(e){
     console.error('ativarPush:',e);
-    toast('⚠️ Não foi possível ativar as notificações neste aparelho');
+    toast('⚠️ Não foi possível ativar as notificações neste aparelho: '+(e?.message||e));
   }
   await refreshPushUI();
 }
