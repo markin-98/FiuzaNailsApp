@@ -106,21 +106,45 @@ async function registerSW(){
 }
 registerSW();
 
-function pushStatusEls(){ return ['push-status-cli','push-status-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
-function pushBtnEls(){ return ['push-btn-cli','push-btn-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
-function setPushStatus(msg){ pushStatusEls().forEach(el=>el.textContent=msg); }
+function pushCardEls(){ return ['push-card-cli','push-card-adm'].map(id=>document.getElementById(id)).filter(Boolean); }
 
-// Atualiza o card de notificações do perfil com o estado atual (chamado ao abrir a aba)
+// Mostra o card só quando ainda não está ativo neste aparelho (chamado ao abrir a aba)
 async function refreshPushUI(){
-  if(!('Notification' in window) || !('PushManager' in window)){ setPushStatus('⚠️ Este navegador não suporta notificações'); return; }
-  if(Notification.permission==='denied'){ setPushStatus('⚠️ Bloqueadas — ative nas configurações do navegador/app'); return; }
+  const cards=pushCardEls();
+  if(!('Notification' in window) || !('PushManager' in window)){ cards.forEach(c=>c.classList.add('hidden')); return; }
+  let ativo=false;
   if(Notification.permission==='granted'){
     if(!swReg) swReg=await registerSW();
     const sub=await swReg?.pushManager.getSubscription();
-    if(sub){ setPushStatus('✅ Notificações ativas neste aparelho'); pushBtnEls().forEach(b=>b.textContent='Notificações ativadas'); return; }
+    ativo=!!sub;
   }
-  setPushStatus('');
-  pushBtnEls().forEach(b=>b.textContent='Ativar notificações');
+  cards.forEach(c=>c.classList.toggle('hidden',ativo));
+}
+
+// Modal centralizado, mostrado toda vez que o app abre pra quem ainda não
+// ativou — fecha sozinho se apertar "Agora não" (só nesta sessão, volta a
+// aparecer na próxima vez que abrir o app) ou se ativar pelo botão.
+async function maybeShowPushBanner(){
+  const modal=document.getElementById('push-modal'); if(!modal) return;
+  if(sessionStorage.getItem('push_banner_dismissed')) return;
+  if(!('Notification' in window) || !('PushManager' in window)) return;
+  if(Notification.permission==='denied') return; // já negou — não insiste
+  if(Notification.permission==='granted'){
+    if(!swReg) swReg=await registerSW();
+    const sub=await swReg?.pushManager.getSubscription();
+    if(sub) return; // já ativo neste aparelho
+  }
+  const pwaBanner=document.getElementById('pwa-banner');
+  if(pwaBanner && !pwaBanner.classList.contains('hidden')) return; // não compete com o banner de instalar
+  modal.classList.remove('hidden');
+}
+function pushBannerDismiss(){
+  document.getElementById('push-modal')?.classList.add('hidden');
+  sessionStorage.setItem('push_banner_dismissed','1');
+}
+async function ativarPushBanner(){
+  await ativarPush();
+  document.getElementById('push-modal')?.classList.add('hidden');
 }
 
 // Pede permissão e inscreve este aparelho — precisa ser chamado direto por um
@@ -464,6 +488,7 @@ function initCliente(){
   }
   // Obrigar telefone
   if(!profile?.tel){ show('modal-phone'); }
+  setTimeout(maybeShowPushBanner,1500);
 
   // Restaura tela de confirmação se o app foi reiniciado logo após um agendamento
   // (acontece quando o iOS/Android mata o PWA ao abrir o WhatsApp)
@@ -1017,6 +1042,7 @@ function initAdmin(){
   admRenderDash();
   initNotifications();
   checkNoShows();
+  setTimeout(maybeShowPushBanner,1500);
 }
 
 function admTab(tab,el){

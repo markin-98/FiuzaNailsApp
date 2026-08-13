@@ -218,7 +218,12 @@
     .pix-copy-btn:active{opacity:.6}
 
     /* ── PWA BANNER ── */
-    .pwa-banner{position:fixed;bottom:0;left:0;right:0;z-index:500;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--s2);border-top:1.5px solid var(--glass-b);box-shadow:0 -4px 24px rgba(0,0,0,.15);animation:slideUp .35s ease}
+    .pwa-banner{position:fixed;bottom:var(--nav);left:0;right:0;z-index:150;padding:10px 12px;background:var(--s2);border-top:1.5px solid var(--glass-b);border-bottom:1.5px solid var(--glass-b);box-shadow:0 -4px 24px rgba(0,0,0,.15);animation:slideUp .35s ease}
+    #push-modal{position:fixed;inset:0;background:rgba(14,10,6,.55);backdrop-filter:blur(6px);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+    #push-modal.hidden{display:none}
+    #push-modal .box{background:var(--surface);border:1px solid var(--glass-b);border-radius:22px;padding:28px 24px;width:100%;max-width:360px;text-align:center;animation:slideUp .35s ease}
+    #push-modal h3{font-size:1.08rem;font-weight:900;color:var(--pdk);margin-bottom:6px}
+    #push-modal p{font-size:.84rem;color:var(--t2);margin-bottom:20px;line-height:1.5}
     .pwa-banner.hidden{display:none}
     .pwa-banner-inner{display:flex;align-items:center;gap:10px;max-width:480px;margin:0 auto}
     .pwa-banner-icon{width:42px;height:42px;border-radius:10px;object-fit:cover;flex-shrink:0;border:1.5px solid var(--plt)}

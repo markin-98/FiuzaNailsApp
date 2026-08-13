@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#4a3525"/>
   <link rel="manifest" href="manifest.json"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <link rel="stylesheet" href="styles.css?v=8"/>
+  <link rel="stylesheet" href="styles.css?v=9"/>
 </head>
 <body>
 
@@ -290,11 +290,10 @@
         <button class="btn btn-primary btn-full" onclick="cliSalvarPerfil()">Salvar</button>
       </div>
       <div style="height:12px"></div>
-      <div class="card">
-        <div style="font-weight:900;font-size:.92rem;margin-bottom:4px">🔔 Notificações no aparelho</div>
-        <div style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Receba avisos de confirmação, cancelamento e lembrete de horário, mesmo com o app fechado.</div>
-        <button class="btn btn-primary btn-full" id="push-btn-cli" onclick="ativarPush()">Ativar notificações</button>
-        <div style="font-size:.74rem;color:var(--t3);margin-top:8px;text-align:center" id="push-status-cli"></div>
+      <div class="card hidden" id="push-card-cli" style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:1.3rem;flex-shrink:0">🔔</div>
+        <div style="flex:1;font-size:.82rem;font-weight:700">Ativar notificações no aparelho</div>
+        <button class="btn btn-sm btn-primary" onclick="ativarPush()">Ativar</button>
       </div>
       <div style="height:12px"></div>
       <div class="card">
@@ -506,11 +505,10 @@
         <button class="btn btn-danger btn-full" onclick="logout()">Sair da conta</button>
       </div>
 
-      <div class="card" style="margin-bottom:12px">
-        <div style="font-weight:900;font-size:.92rem;margin-bottom:4px">🔔 Notificações no aparelho</div>
-        <div style="font-size:.78rem;color:var(--t2);margin-bottom:10px">Receba avisos de novo pedido e cancelamento aqui no celular, mesmo com o app fechado.</div>
-        <button class="btn btn-primary btn-full" id="push-btn-adm" onclick="ativarPush()">Ativar notificações</button>
-        <div style="font-size:.74rem;color:var(--t3);margin-top:8px;text-align:center" id="push-status-adm"></div>
+      <div class="card hidden" id="push-card-adm" style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+        <div style="font-size:1.3rem;flex-shrink:0">🔔</div>
+        <div style="flex:1;font-size:.82rem;font-weight:700">Ativar notificações no aparelho</div>
+        <button class="btn btn-sm btn-primary" onclick="ativarPush()">Ativar</button>
       </div>
 
       <!-- FINANCEIRO -->
@@ -655,6 +653,17 @@
   </div>
 </div>
 
+<!-- MODAL: Ativar notificações (centralizado, não é banner) -->
+<div id="push-modal" class="hidden">
+  <div class="box">
+    <div style="font-size:2.4rem;margin-bottom:10px">🔔</div>
+    <h3>Ativar notificações</h3>
+    <p>Receba avisos de agendamento, confirmação e lembrete de horário mesmo com o app fechado.</p>
+    <button class="btn btn-primary btn-full" onclick="ativarPushBanner()">Ativar notificações</button>
+    <button class="btn btn-full" style="background:none;color:var(--t3);margin-top:6px" onclick="pushBannerDismiss()">Agora não</button>
+  </div>
+</div>
+
 <!-- MODAL: Instruções iOS -->
 <div id="pwa-ios-modal" class="sheet-overlay hidden" onclick="if(event.target===this)this.classList.add('hidden')">
   <div class="sheet" style="max-height:auto;padding-bottom:env(safe-area-inset-bottom,16px)">
@@ -680,6 +689,6 @@
   </div>
 </div>
 
-<script src="script.js?v=12"></script>
+<script src="script.js?v=15"></script>
 </body>
 </html>
