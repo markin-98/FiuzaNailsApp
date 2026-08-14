@@ -497,6 +497,11 @@ function getSI(){ return salonConfig?.info||DEFAULT_INFO; }
 // (ex: salonConfig ainda não carregou), pra nunca ficar sem número nenhum.
 function getSalonPhone(){ return getSI().whatsapp||FABIANA_PHONE; }
 function getPixKey(){
+  // Chave Pix é independente do WhatsApp — a admin pode trocar pra CPF, CNPJ,
+  // e-mail ou chave aleatória sem precisar mexer no número de contato. Só cai
+  // pro WhatsApp formatado se nenhuma chave Pix própria foi cadastrada ainda.
+  const pix=(getSI().pix_key||'').trim();
+  if(pix) return pix;
   const wp=getSalonPhone();
   return wp.replace(/^55(\d{2})(\d{5})(\d{4})$/,'($1) $2-$3')||wp;
 }
@@ -1313,6 +1318,7 @@ function admRenderSalonInfo(){
   set('si-maps',          si.maps_url);
   set('si-instagram',     si.instagram);
   set('si-whatsapp',      si.whatsapp);
+  set('si-pix',           si.pix_key);
   set('si-seg-sex',       si.seg_sex);
   set('si-sabado',        si.sabado);
   set('si-domingo',       si.domingo);
@@ -1334,6 +1340,7 @@ async function admSalvarInfo(){
     maps_url:      g('si-maps'),
     instagram:     g('si-instagram').replace(/^@/,''),
     whatsapp:      g('si-whatsapp').replace(/\D/g,''),
+    pix_key:       g('si-pix'), // CPF/CNPJ/e-mail/aleatória — não mexe nos dígitos, ao contrário do whatsapp
     seg_sex:       g('si-seg-sex'),
     sabado:        g('si-sabado'),
     domingo:       g('si-domingo'),
