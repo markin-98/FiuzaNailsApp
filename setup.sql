@@ -395,6 +395,24 @@ begin
   then
     return new;
   end if;
+  -- A Edge Function send-reminders também cancela Pix pendente vencido (>24h) e
+  -- marca no-show ("faltante") sozinha via cron, com a service_role key — sem
+  -- sessão, então auth.uid() vem null aqui. Libera essas duas transições
+  -- específicas de sistema quando mais nada além do status muda.
+  if auth.uid() is null
+     and new.cliente_id is not distinct from old.cliente_id
+     and new.data is not distinct from old.data
+     and new.hora is not distinct from old.hora
+     and new.valor is not distinct from old.valor
+     and new.sinal_pago is not distinct from old.sinal_pago
+     and new.servico_id is not distinct from old.servico_id
+     and (
+       (old.status='pendente' and new.status='cancelado')
+       or (old.status='agendado' and new.status='faltante')
+     )
+  then
+    return new;
+  end if;
   -- cliente só pode cancelar o próprio agendamento; mais nada muda
   if old.status = 'cancelado'
      or new.status <> 'cancelado'

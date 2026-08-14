@@ -81,14 +81,17 @@ Deno.serve(async (req) => {
     return new Response("ignored", { status: 200 });
   }
 
+  let enviados = 0, falhas = 0;
   for (const g of grupos) {
     if (!g.recipients.length) continue;
     const { data: subs } = await supabase
       .from("push_subscriptions")
       .select("id,endpoint,p256dh,auth")
       .in("user_id", g.recipients);
-    await sendToSubs(supabase, subs || [], g.payload);
+    const r = await sendToSubs(supabase, subs || [], g.payload);
+    enviados += r.enviados; falhas += r.falhas;
   }
+  if (falhas) console.error(`notify-agendamento: ${falhas} envio(s) falharam (evento ${evento}) — confira VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY`);
 
-  return new Response("ok", { status: 200 });
+  return new Response(JSON.stringify({ enviados, falhas }), { status: 200, headers: { "Content-Type": "application/json" } });
 });

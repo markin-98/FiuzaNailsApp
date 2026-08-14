@@ -24,7 +24,6 @@ const DEFAULT_INFO  = {
 const MESES         = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const PAGAMENTOS    = ['Pix','Cartão Crédito','Cartão Débito','Dinheiro'];
 const SINAL_VALOR   = 50;
-const FABIANA_PIX   = '(31) 98538-6404'; // Chave Pix (telefone)
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -266,7 +265,7 @@ async function renderNotifPanel(){
   }
   el.innerHTML=data.map(a=>{
     const d=new Date(a.data+'T00:00:00');
-    const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+    const dow=DNS_LABELS[d.getDay()];
     const restante=Math.max(0,(a.valor||a.servico?.preco||0)-SINAL_VALOR);
     const pendH=Math.floor((Date.now()-new Date(a.created_at).getTime())/3600000);
     const pendStr=pendH<1?'há menos de 1h':pendH===1?'há 1h':`há ${pendH}h`;
@@ -319,8 +318,9 @@ async function admRejectPixNotif(id){
 
 async function updateNotifCount(){
   const today=todayStr();
-  const{count}=await sb.from('agendamentos').select('*',{count:'exact',head:true})
+  const{count,error}=await sb.from('agendamentos').select('*',{count:'exact',head:true})
     .eq('status','pendente').gte('data',today);
+  if(error) console.error('updateNotifCount:',error);
   const n=count||0;
   const navBadge=document.getElementById('nav-pend-badge');
   if(navBadge){ navBadge.textContent=n; navBadge.classList.toggle('hidden',n===0); }
@@ -436,7 +436,11 @@ async function loginGoogle(){
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
 async function loadProfile(){
-  const{data}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  const{data,error}=await sb.from('profiles').select('*').eq('id',user.id).single();
+  if(error){
+    console.error('loadProfile:',error);
+    toast('⚠️ Não foi possível carregar seu perfil. Verifique a internet e tente de novo.');
+  }
   profile=data;
 }
 // Favoritos (localStorage)
@@ -488,6 +492,14 @@ async function fetchSalonConfig(){
   }catch(e){ salonConfig={horarios:HORARIOS,info:{...DEFAULT_INFO}}; }
 }
 function getSI(){ return salonConfig?.info||DEFAULT_INFO; }
+// Telefone/Pix "de verdade" — sempre o que a admin editou no painel (Configurações),
+// nunca a constante fixa. FABIANA_PHONE só existe como último fallback de segurança
+// (ex: salonConfig ainda não carregou), pra nunca ficar sem número nenhum.
+function getSalonPhone(){ return getSI().whatsapp||FABIANA_PHONE; }
+function getPixKey(){
+  const wp=getSalonPhone();
+  return wp.replace(/^55(\d{2})(\d{5})(\d{4})$/,'($1) $2-$3')||wp;
+}
 async function init(){
   const{data:{session}}=await sb.auth.getSession();
   if(session){ user=session.user; await loadProfile(); hide('screen-loading'); route(); }
@@ -610,10 +622,11 @@ async function cliRenderHome(){
   renderHomeServs();
 
   // Agendamentos
-  const{data}=await sb.from('agendamentos')
+  const{data,error}=await sb.from('agendamentos')
     .select('*,servico:servicos(nome,preco)')
     .eq('cliente_id',user.id).gte('data',todayStr()).neq('status','cancelado')
     .order('data').order('hora');
+  if(error) console.error('cliRenderHome:',error);
 
   const proxEl=document.getElementById('cli-proximo');
   const futWrap=document.getElementById('cli-futuros-wrap');
@@ -629,10 +642,9 @@ async function cliRenderHome(){
   }
   const[next,...rest]=data;
   const nd=new Date(next.data+'T00:00:00');
-  const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][nd.getDay()];
+  const dow=DNS_LABELS[nd.getDay()];
   const isPend=next.status==='pendente';
-  const si=getSI();
-  const pixKey=si.whatsapp?.replace(/^55(\d{2})(\d{5})(\d{4})$/,'($1) $2-$3')||FABIANA_PIX;
+  const pixKey=getPixKey();
   proxEl.innerHTML=`<div class="next-card ${isPend?'pend':''}">
     <div class="nc-lbl">${isPend?'⏳ Aguardando confirmação':'Próximo agendamento'}</div>
     <div class="nc-serv">${resolveServNomes(next,servicos)}</div>
@@ -649,7 +661,7 @@ async function cliRenderHome(){
     futWrap.classList.remove('hidden');
     futEl.innerHTML=rest.map(a=>{
       const d2=new Date(a.data+'T00:00:00');
-      const dw=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d2.getDay()];
+      const dw=DNS_LABELS[d2.getDay()];
       const stBadge=a.status==='pendente'?`<span class="badge badge-gold" style="font-size:.62rem">⏳ Pix pendente</span>`:'';
       return `<div class="appt-row">
         <div class="appt-dot ${a.status}"></div>
@@ -671,17 +683,20 @@ async function cliCancelar(id){
 }
 
 async function cliRenderHist(){
-  const{data}=await sb.from('agendamentos')
-    .select('*,servico:servicos(nome,preco)')
-    .eq('cliente_id',user.id)
-    .order('data',{ascending:false}).order('hora',{ascending:false});
+  // Contagem separada (não traz as linhas) pro cartão fidelidade não depender
+  // do tamanho da lista visível — funciona certo mesmo com histórico enorme.
+  const[{count:totalConcluidos,error:cErr},{data,error}]=await Promise.all([
+    sb.from('agendamentos').select('*',{count:'exact',head:true}).eq('cliente_id',user.id).eq('status','concluido'),
+    sb.from('agendamentos').select('*,servico:servicos(nome,preco)').eq('cliente_id',user.id)
+      .order('data',{ascending:false}).order('hora',{ascending:false}).limit(60)
+  ]);
+  if(cErr||error) console.error('cliRenderHist:',cErr||error);
   const el=document.getElementById('cli-hist');
 
   // Cartão fidelidade
   const fidWrap=document.getElementById('cli-fid-wrap');
   if(fidWrap){
-    const concluidos=(data||[]).filter(a=>a.status==='concluido');
-    const total=concluidos.length;
+    const total=totalConcluidos||0;
     const ciclo=total%5;
     const ganhos=Math.floor(total/5);
     const resgatados=profile?.premios_resgatados||0;
@@ -704,7 +719,7 @@ async function cliRenderHist(){
         <div class="fid-award-info">
           <strong>Você tem ${disponiveis} Decoraç${disponiveis>1?'ões':'ão'} gratuita${disponiveis>1?'s':''}!</strong>
           <span>Envie uma mensagem para a Fabiana para agendar seu prêmio 💅</span>
-          <a href="https://wa.me/5531985386404?text=${encodeURIComponent(`Olá Fabiana! 🎉 Completei meus atendimentos e ganhei ${disponiveis===1?'uma Decoração gratuita':''+disponiveis+' Decorações gratuitas'}! Gostaria de agendar para usar meu prêmio! 💅`)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:rgba(0,0,0,.18);border-radius:10px;padding:8px 14px;text-decoration:none;color:#3a1c00;font-weight:800;font-size:.8rem">
+          <a href="${waLink(getSalonPhone(),`Olá Fabiana! 🎉 Completei meus atendimentos e ganhei ${disponiveis===1?'uma Decoração gratuita':''+disponiveis+' Decorações gratuitas'}! Gostaria de agendar para usar meu prêmio! 💅`)}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;background:rgba(0,0,0,.18);border-radius:10px;padding:8px 14px;text-decoration:none;color:#3a1c00;font-weight:800;font-size:.8rem">
             📲 Avisar Fabiana
           </a>
         </div>
@@ -722,7 +737,7 @@ async function cliRenderHist(){
   if(!data||data.length===0){ el.innerHTML='<div class="empty"><div class="ei">📋</div><p>Nenhum agendamento ainda</p></div>'; return; }
   el.innerHTML=data.map(a=>{
     const d=new Date(a.data+'T00:00:00');
-    const dw=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+    const dw=DNS_LABELS[d.getDay()];
     const bc=a.status==='concluido'?'badge-green':a.status==='cancelado'?'badge-red':a.status==='pendente'?'badge-gold':a.status==='faltante'?'badge-gray':'badge-tan';
     const bl=a.status==='concluido'?'✅ Concluído':a.status==='cancelado'?'Cancelado':a.status==='pendente'?'⏳ Aguardando confirmação':a.status==='faltante'?'👻 Faltou':'Agendado';
     const restante=a.status==='pendente'?`<div style="font-size:.7rem;color:var(--goldt);margin-top:2px">Sinal: R$${SINAL_VALOR} · Restante: ${fmtMoney(Math.max(0,(a.servico?.preco||0)-SINAL_VALOR))}</div>`:'';
@@ -933,7 +948,7 @@ function bkSelData(ds){
   bkData=ds; bkHora=null;
   bkRenderDates();
   const d=new Date(ds+'T00:00:00');
-  const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+  const dow=DNS_LABELS[d.getDay()];
   const lbl=`${dow}, ${fmtDate(ds)}`;
   // Auto-advance to times
   setTimeout(async()=>{
@@ -1006,7 +1021,7 @@ function bkRenderConfirm(){
   document.getElementById('cf-data').textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('cf-hora').textContent=bkHora;
   document.getElementById('cf-val').textContent=fmtMoney(totalPreco);
-  const pkEl=document.getElementById('bk-pix-key'); if(pkEl) pkEl.textContent=FABIANA_PIX;
+  const pkEl=document.getElementById('bk-pix-key'); if(pkEl) pkEl.textContent=getPixKey();
   bkPagamento=null;
   document.querySelectorAll('.pag-chip').forEach(c=>c.classList.remove('sel'));
   document.getElementById('bk-obs').value='';
@@ -1028,7 +1043,7 @@ async function bkConfirm(){
   const msgSalon=`Olá Fabiana! 😊 *Novo pedido de agendamento — Pix enviado pela cliente:*\n\n👤 *${profile.nome}*\n💅 *Serviço(s):*\n${servLineList}\n📅 ${fmtDate(bkData)} às ${bkHora}\n🕐 ${totalDur} min\n💰 Total: ${fmtMoney(totalPreco)}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* (aguardando confirmação)\n💰 Restante no dia: ${fmtMoney(restante)}\n💳 Pagamento restante: *${bkPagamento}*\n📱 Fone: ${profile.tel||'não informado'}${obs?'\n📝 Obs: '+obs:''}\n\n_Via Fiuza Nails App_ 💅`;
   const clientePhone=(profile.tel||'').replace(/\D/g,'');
   const msgCliente=`Olá ${profile.nome.split(' ')[0]}! 😊 Recebemos seu pedido de agendamento na *Fiuza Nails* 💅\n\n💅 *${servLabel}*\n📅 ${fmtDate(bkData)} às ${bkHora}\n💸 Sinal Pix: *R$ ${SINAL_VALOR},00* — recebido ✅ aguardando confirmação\n💰 Restante no dia: *${fmtMoney(restante)}*\n💳 Pagamento restante: *${bkPagamento}*\n\nAssim que confirmarmos o Pix, seu horário estará reservado! ✨\n_@ffiuza_nails_`;
-  const waSalonHref=waLink(FABIANA_PHONE,msgSalon);
+  const waSalonHref=waLink(getSalonPhone(),msgSalon);
   const waCliHref=clientePhone?waLink('55'+clientePhone,msgCliente):waSalonHref;
 
   // ORDEM CRÍTICA para o iOS standalone (app instalado no iPhone):
@@ -1106,6 +1121,7 @@ function initAdmin(){
   const FABIANA_FOTO='fabiana.jpg';
   document.getElementById('adm-av').innerHTML=`<img src="${FABIANA_FOTO}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.parentElement.textContent='👸'">`;
   document.getElementById('adm-pav').innerHTML=`<img src="${FABIANA_FOTO}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.textContent='👸'">`;
+  const admWaBtn=document.getElementById('adm-p-wa'); if(admWaBtn) admWaBtn.href='https://wa.me/'+getSalonPhone();
   admRenderDash();
   initNotifications();
   checkNoShows();
@@ -1173,7 +1189,7 @@ function admSelHorData(ds){
   admHorData=ds;
   admRenderHorCal();
   const d=new Date(ds+'T00:00:00');
-  const dow=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][d.getDay()];
+  const dow=DNS_LABELS[d.getDay()];
   const[y,mm,dd]=ds.split('-');
   document.getElementById('adm-hor-data-lbl').textContent=`${dow}, ${dd}/${mm}/${y}`;
   document.getElementById('adm-hor-data-wrap').style.display='';
@@ -1213,7 +1229,7 @@ async function admSalvarHorariosData(){
 }
 
 const DIAS_SEMANA_PT=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
-const DIAS_SHORT_PT=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const DIAS_SHORT_PT=DNS_LABELS;
 
 function admRenderDowTabs(){
   const perDia=getSI().horarios_por_dia||{};
@@ -1409,9 +1425,10 @@ async function admRenderDash(){
   await autoCancelExpiredPending();
   const today=todayStr();
   // Pendentes (todas as datas futuras + hoje)
-  const{data:pendentes}=await sb.from('agendamentos')
+  const{data:pendentes,error:errPend}=await sb.from('agendamentos')
     .select('*,servico:servicos(nome,preco),cliente:profiles(nome,tel)')
     .eq('status','pendente').gte('data',today).order('data').order('hora');
+  if(errPend) console.error('admRenderDash (pendentes):',errPend);
   const pendWrap=document.getElementById('ds-pend-wrap');
   const pendList=document.getElementById('ds-pend-list');
   const pendCount=document.getElementById('ds-pend-count');
@@ -1422,19 +1439,21 @@ async function admRenderDash(){
   } else {
     pendWrap?.classList.add('hidden');
   }
-  const[{data:hoje},{count:cliCnt}]=await Promise.all([
+  const[{data:hoje,error:errHoje},{count:cliCnt}]=await Promise.all([
     sb.from('agendamentos').select('*,servico:servicos(nome),cliente:profiles(nome,tel)').eq('data',today),
     sb.from('profiles').select('*',{count:'exact',head:true}).eq('role','cliente')
   ]);
+  if(errHoje) console.error('admRenderDash (hoje):',errHoje);
   const conc=(hoje||[]).filter(a=>a.status==='concluido');
   const rec=conc.reduce((s,a)=>s+Number(a.valor||0),0);
   document.getElementById('ds-hoje').textContent=(hoje||[]).length;
   document.getElementById('ds-rec').textContent=fmtMoney(rec);
   document.getElementById('ds-conc').textContent=conc.length;
   const now=nowBR(),mes=now.getMonth(),ano=now.getFullYear();
-  const{data:ml}=await sb.from('agendamentos').select('valor')
+  const{data:ml,error:errMl}=await sb.from('agendamentos').select('valor')
     .gte('data',`${ano}-${String(mes+1).padStart(2,'0')}-01`)
     .lt('data',`${ano}-${String(mes+2).padStart(2,'0')}-01`).eq('status','concluido');
+  if(errMl) console.error('admRenderDash (mes):',errMl);
   document.getElementById('ds-mes').textContent=fmtMoney((ml||[]).reduce((s,a)=>s+Number(a.valor||0),0));
   const prox=(hoje||[]).filter(a=>a.status==='agendado'||a.status==='pendente').sort((a,b)=>a.hora.localeCompare(b.hora));
   document.getElementById('ds-list').innerHTML=prox.length
@@ -1451,14 +1470,14 @@ async function admRenderAgenda(){
   const ds6=localDs(days[6]);
   const fmt=d=>d.toLocaleDateString('pt-BR',{day:'numeric',month:'short'});
   document.getElementById('adm-week-lbl').textContent=`${fmt(days[0])} – ${fmt(days[6])}`;
-  const{data:wk}=await sb.from('agendamentos').select('data').gte('data',ds0).lte('data',ds6).neq('status','cancelado');
+  const{data:wk,error:errWk}=await sb.from('agendamentos').select('data').gte('data',ds0).lte('data',ds6).neq('status','cancelado');
+  if(errWk) console.error('admRenderAgenda:',errWk);
   const wkSet=new Set((wk||[]).map(a=>a.data));
-  const dns=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   document.getElementById('adm-week').innerHTML=days.map(d=>{
     const ds=localDs(d);
     const sel=ds===admSelDate;
     return `<div class="dc ${sel?'sel':''}" onclick="admSelDay('${ds}')">
-      <div class="dn">${dns[d.getDay()]}</div>
+      <div class="dn">${DNS_LABELS[d.getDay()]}</div>
       <div class="dd">${d.getDate()}</div>
       ${wkSet.has(ds)?'<div class="dt"></div>':'<div style="height:8px"></div>'}
     </div>`;
@@ -1468,9 +1487,10 @@ async function admRenderAgenda(){
 
 async function admRenderDayList(){
   document.getElementById('adm-sel-date-lbl').textContent=ptDate(admSelDate);
-  const{data}=await sb.from('agendamentos')
+  const{data,error}=await sb.from('agendamentos')
     .select('*,servico:servicos(nome),cliente:profiles(nome,tel)')
     .eq('data',admSelDate).order('hora');
+  if(error) console.error('admRenderDayList:',error);
   const el=document.getElementById('adm-day-list');
   if(!data||data.length===0){
     el.innerHTML=`<div class="empty"><div class="ei">📅</div><p>Nenhum agendamento</p>
@@ -1830,13 +1850,17 @@ function admEnviarPremioFid(cliNome, cliTel){
 async function checkNoShows(){
   const now=new Date();
   const today=todayStr();
-  const yesterday=new Date(now); yesterday.setDate(yesterday.getDate()-1);
+  // yesterday calculado em cima de nowBR() (não do relógio local do aparelho) pra
+  // não desalinhar do "hoje" de Brasília perto da meia-noite se quem estiver com
+  // o app aberto estiver num fuso bem diferente do de BH.
+  const yesterday=nowBR(); yesterday.setDate(yesterday.getDate()-1);
   const yStr=localDs(yesterday);
 
-  const{data}=await sb.from('agendamentos')
+  const{data,error}=await sb.from('agendamentos')
     .select('id,hora,data,duracao_min')
     .eq('status','agendado')
     .gte('data',yStr).lte('data',today);
+  if(error){ console.error('checkNoShows:',error); return; }
 
   const vencidos=(data||[]).filter(a=>{
     const dur=(a.duracao_min||60);
@@ -1846,8 +1870,8 @@ async function checkNoShows(){
 
   if(!vencidos.length) return;
   const ids=vencidos.map(a=>a.id);
-  const{error}=await sb.from('agendamentos').update({status:'faltante'}).in('id',ids);
-  if(error){ console.error('checkNoShows:',error); return; }
+  const{error:updErr}=await sb.from('agendamentos').update({status:'faltante'}).in('id',ids);
+  if(updErr){ console.error('checkNoShows:',updErr); return; }
   toast(`👻 ${ids.length} atendimento${ids.length>1?'s':''} marcado${ids.length>1?'s':''} como faltante`);
   admRenderDayList();
   admRenderDash();

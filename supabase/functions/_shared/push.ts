@@ -33,13 +33,18 @@ export function urlParaTab(tab?: string) {
 }
 
 // Manda pra todas as inscrições de uma vez; se uma inscrição estiver morta
-// (410/404 — usuária desinstalou/revogou), apaga ela do banco.
+// (410/404 — usuária desinstalou/revogou), apaga ela do banco. Devolve quantas
+// falharam por outro motivo (ex: VAPID_PRIVATE_KEY errada/ausente) — sem isso,
+// o push podia ficar "morto" silenciosamente por semanas sem nenhum sintoma
+// visível, já que o app só sabe se a subscription existe localmente, não se o
+// envio de fato funcionou no servidor.
 export async function sendToSubs(
   supabase: any,
   subs: Sub[],
   payload: PushPayload,
-) {
+): Promise<{ enviados: number; falhas: number }> {
   const body = JSON.stringify(payload);
+  let falhas = 0;
   await Promise.all(subs.map(async (s) => {
     try {
       await webpush.sendNotification(
@@ -51,10 +56,12 @@ export async function sendToSubs(
       if (status === 404 || status === 410) {
         await supabase.from("push_subscriptions").delete().eq("id", s.id);
       } else {
+        falhas++;
         console.error("push send failed:", s.endpoint, status, err?.body || err);
       }
     }
   }));
+  return { enviados: subs.length - falhas, falhas };
 }
 
 export function fmtMoney(v: number) {
