@@ -521,8 +521,12 @@
         <p style="font-size:.8rem;color:var(--t2);line-height:1.6;margin:0 0 10px">
           Assine esse link uma única vez no Calendário do iPhone e seus agendamentos confirmados aparecem lá automaticamente — sem precisar copiar nada na mão.
         </p>
-        <div style="background:var(--s2);border-radius:10px;padding:10px 12px;font-size:.72rem;word-break:break-all;color:var(--t2);margin-bottom:10px" id="adm-ics-link">Carregando...</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <div style="flex:1;min-width:0;background:var(--s2);border-radius:10px;padding:10px 12px;font-size:.72rem;word-break:break-all;color:var(--t3)" id="adm-ics-link">🔒 Link oculto por segurança</div>
+          <button class="btn btn-sm btn-ghost" id="adm-ics-toggle" onclick="admToggleIcsLink()" style="flex-shrink:0;white-space:nowrap">👁️ Mostrar</button>
+        </div>
         <button class="btn btn-sm btn-ghost btn-full" onclick="admCopiarIcsLink()" style="margin-bottom:10px">📋 Copiar link</button>
+        <div style="font-size:.7rem;color:var(--t3);margin:-4px 0 10px">⚠️ Não compartilhe esse link — quem tiver acesso a ele vê os nomes e horários das suas clientes.</div>
         <details style="font-size:.76rem;color:var(--t3);line-height:1.6">
           <summary style="cursor:pointer;font-weight:700;color:var(--t2)">Como assinar no iPhone</summary>
           <ol style="margin:8px 0 0;padding-left:18px">

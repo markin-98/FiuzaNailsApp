@@ -2058,12 +2058,31 @@ function agendaIcsUrl(scheme){
   const host=SUPABASE_URL.replace(/^https?:\/\//,'');
   return `${scheme}://${host}/functions/v1/agenda-ics?token=${token}`;
 }
+// Escondido por padrão — quem passa o olho na tela ou tira print não vê o
+// link. Some de novo toda vez que a aba Perfil é reaberta, então não fica
+// exposto sozinho depois que a admin sai da tela.
+let admIcsRevelado=false;
 function admRenderAgendaIcs(){
+  admIcsRevelado=false;
+  admAtualizarIcsBox();
+}
+function admToggleIcsLink(){
+  admIcsRevelado=!admIcsRevelado;
+  admAtualizarIcsBox();
+}
+function admAtualizarIcsBox(){
   const el=document.getElementById('adm-ics-link'); if(!el) return;
+  const btn=document.getElementById('adm-ics-toggle');
   const httpsUrl=agendaIcsUrl('https');
-  const webcalUrl=agendaIcsUrl('webcal');
   if(!httpsUrl){ el.textContent='Link ainda não disponível — tente recarregar o app.'; return; }
-  el.innerHTML=`<a href="${webcalUrl}" style="color:var(--primary);text-decoration:none;word-break:break-all">${httpsUrl}</a>`;
+  if(admIcsRevelado){
+    const webcalUrl=agendaIcsUrl('webcal');
+    el.innerHTML=`<a href="${webcalUrl}" style="color:var(--primary);text-decoration:none;word-break:break-all">${httpsUrl}</a>`;
+    if(btn) btn.textContent='🙈 Esconder';
+  } else {
+    el.textContent='🔒 Link oculto por segurança';
+    if(btn) btn.textContent='👁️ Mostrar';
+  }
 }
 function admCopiarIcsLink(){
   const url=agendaIcsUrl('https');
