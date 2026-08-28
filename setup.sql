@@ -65,6 +65,12 @@ alter table public.agendamentos add column if not exists sinal_pago boolean defa
 alter table public.agendamentos add column if not exists servicos_ids uuid[] default '{}';
 alter table public.servicos add column if not exists icone text;
 
+-- Cliente "avulsa" (sem cadastro/login no app) — a admin marca só com nome e
+-- telefone, cliente_id fica null. Não entra no cartão fidelidade nem recebe
+-- notificação, porque não existe conta pra vincular isso.
+alter table public.agendamentos add column if not exists nome_avulso text;
+alter table public.agendamentos add column if not exists tel_avulso text;
+
 -- ── ANTI DOUBLE-BOOKING: impede duas clientes marcarem o mesmo horário ──
 -- Guarda a duração total (min) do agendamento e usa uma exclusion constraint
 -- (nível de banco, à prova de condição de corrida) para bloquear qualquer
@@ -292,6 +298,16 @@ create table if not exists public.salon_config (
 );
 insert into public.salon_config (id) values (1) on conflict (id) do nothing;
 alter table public.salon_config add column if not exists info jsonb default '{}'::jsonb;
+
+-- Token que protege o feed .ics/webcal da agenda (assinatura de calendário no
+-- iPhone) — sem ele, qualquer um com a URL veria nome/telefone das clientes.
+-- Gerado uma única vez; a Edge Function agenda-ics confere ?token= contra isto.
+update public.salon_config
+set info = info || jsonb_build_object(
+  'agenda_ics_token',
+  replace(gen_random_uuid()::text,'-','') || replace(gen_random_uuid()::text,'-','')
+)
+where id = 1 and not (info ? 'agenda_ics_token');
 
 -- ── 5. RLS (Row Level Security) ──────────────────────────────
 alter table public.profiles     enable row level security;

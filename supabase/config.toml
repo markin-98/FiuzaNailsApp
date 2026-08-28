@@ -7,3 +7,9 @@ verify_jwt = false
 
 [functions.send-reminders]
 verify_jwt = false
+
+# O app Calendário do iPhone busca o feed .ics sozinho e não manda header
+# customizado nenhum — a autenticação é o ?token= conferido dentro do código
+# (agenda-ics/index.ts), por isso o verify_jwt do gateway fica desligado aqui.
+[functions.agenda-ics]
+verify_jwt = false

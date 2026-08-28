@@ -44,7 +44,7 @@ function brDateTime(dataStr, horaStr){
 
 let user=null, profile=null, servicos=[], servicosAll=[], salonConfig=null;
 let bkServs=[], bkData=null, bkHora=null, bkMonth=nowBR(), bkPagamento=null;
-let admWeekOff=0, admSelDate=todayStr(), editAgendId=null, editServId=null, admHorData=null, admHorMonth=nowBR(), admHorDow=null, admAgServs=[];
+let admWeekOff=0, admSelDate=todayStr(), editAgendId=null, editServId=null, admHorData=null, admHorMonth=nowBR(), admHorDow=null, admAgServs=[], admAgAvulsa=false;
 const SALON_SEC_DEFS=[
   {key:'bio',      label:'Sobre Mim',            icon:'👩'},
   {key:'momento',  label:'Seu Momento',           icon:'✨'},
@@ -250,20 +250,66 @@ async function autoCancelExpiredPending(){
   return expired.length;
 }
 
-async function renderNotifPanel(){
-  const cancelados=await autoCancelExpiredPending();
-  if(cancelados) toast(`⏰ ${cancelados} agendamento${cancelados>1?'s':''} sem Pix cancelado${cancelados>1?'s':''} automaticamente`);
+// Notificações da admin: TODAS ficam registradas no painel 🔔 até ela mesma
+// tirar dali — clicando no x do canto, ou (nos tipos sem botão de ação)
+// clicando na própria notificação. Isso vale pra Pix pendente, cancelamento e
+// falta — antes só o Pix pendente "sumia" (quando resolvido) e o resto era só
+// um toast passageiro que se perdia se a admin não estivesse com o app aberto
+// na hora. "Visto" é guardado por conta (igual aos favoritos), não pelo
+// aparelho — cada admin só vê o que ela mesma já dispensou.
+function notifSeenKey(){ return `ffiuza_notif_seen_${user?.id||'anon'}`; }
+function getNotifSeen(){ try{ return new Set(JSON.parse(localStorage.getItem(notifSeenKey())||'[]')); }catch(e){ return new Set(); } }
+function markNotifSeen(key){
+  const seen=getNotifSeen(); seen.add(key);
+  localStorage.setItem(notifSeenKey(), JSON.stringify([...seen].slice(-500)));
+}
+async function admDismissNotif(tipo,id){
+  markNotifSeen(`${tipo}:${id}`);
+  await updateNotifCount();
+  renderNotifPanel();
+}
+
+async function fetchPendentesNaoVistos(){
   const today=todayStr();
-  const{data}=await sb.from('agendamentos')
+  const{data,error}=await sb.from('agendamentos')
     .select('*,servico:servicos(nome,preco),cliente:profiles(nome,tel)')
     .eq('status','pendente').gte('data',today)
     .order('data').order('hora');
+  if(error){ console.error('fetchPendentesNaoVistos:',error); return []; }
+  const seen=getNotifSeen();
+  return (data||[]).filter(a=>!seen.has(`pend:${a.id}`));
+}
+async function fetchCanceladosNaoVistos(limit=20){
+  const{data,error}=await sb.from('agendamentos')
+    .select('id,data,hora,nome_avulso,tel_avulso,servico:servicos(nome),cliente:profiles(nome,tel)')
+    .eq('status','cancelado').order('data',{ascending:false}).order('hora',{ascending:false}).limit(limit);
+  if(error){ console.error('fetchCanceladosNaoVistos:',error); return []; }
+  const seen=getNotifSeen();
+  return (data||[]).filter(a=>!seen.has(`cancel:${a.id}`));
+}
+async function fetchFaltantesNaoVistos(limit=20){
+  const{data,error}=await sb.from('agendamentos')
+    .select('id,data,hora,nome_avulso,tel_avulso,servico:servicos(nome),cliente:profiles(nome,tel)')
+    .eq('status','faltante').order('data',{ascending:false}).order('hora',{ascending:false}).limit(limit);
+  if(error){ console.error('fetchFaltantesNaoVistos:',error); return []; }
+  const seen=getNotifSeen();
+  return (data||[]).filter(a=>!seen.has(`faltante:${a.id}`));
+}
+
+async function renderNotifPanel(){
+  const cancelados=await autoCancelExpiredPending();
+  if(cancelados) toast(`⏰ ${cancelados} agendamento${cancelados>1?'s':''} sem Pix cancelado${cancelados>1?'s':''} automaticamente`);
+  const[pendentes,canceladosNovos,faltantesNovos]=await Promise.all([
+    fetchPendentesNaoVistos(), fetchCanceladosNaoVistos(), fetchFaltantesNaoVistos()
+  ]);
   const el=document.getElementById('notif-body'); if(!el) return;
-  if(!data||!data.length){
-    el.innerHTML='<div style="text-align:center;padding:32px;color:var(--t3);font-size:.85rem">Sem solicitações pendentes ✅</div>';
+  if(!pendentes.length&&!canceladosNovos.length&&!faltantesNovos.length){
+    el.innerHTML='<div style="text-align:center;padding:32px;color:var(--t3);font-size:.85rem">Sem notificações novas ✅</div>';
     return;
   }
-  el.innerHTML=data.map(a=>{
+  // Pix pendente: tem botões de ação, então o x só dispensa a notificação —
+  // não clica em cima do card inteiro pra não atrapalhar quem for confirmar/cancelar.
+  const pendHtml=pendentes.map(a=>{
     const d=new Date(a.data+'T00:00:00');
     const dow=DNS_LABELS[d.getDay()];
     const restante=Math.max(0,(a.valor||a.servico?.preco||0)-SINAL_VALOR);
@@ -271,11 +317,12 @@ async function renderNotifPanel(){
     const pendStr=pendH<1?'há menos de 1h':pendH===1?'há 1h':`há ${pendH}h`;
     const quaseExp=pendH>=20;
     return `<div class="notif-item pend">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+      <button class="notif-x" title="Tirar da lista" onclick="event.stopPropagation();admDismissNotif('pend','${a.id}')">✕</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;padding-right:20px">
         <div style="font-size:.82rem;font-weight:900;color:var(--goldt)">⏳ Pix pendente</div>
         <div style="font-size:.66rem;color:${quaseExp?'var(--redt)':'var(--t3)'};font-weight:${quaseExp?800:600};text-align:right;flex-shrink:0">${pendStr}${quaseExp?' ⚠️':''}</div>
       </div>
-      <div style="font-weight:800;font-size:.9rem">${esc(a.cliente?.nome)||'—'}</div>
+      <div style="font-weight:800;font-size:.9rem">${esc(a.cliente?.nome||a.nome_avulso)||'—'}</div>
       <div style="font-size:.78rem;color:var(--t2);margin-top:2px">💅 ${a.servico?.nome||'—'}</div>
       <div style="font-size:.76rem;color:var(--t3);margin-top:2px">${dow}, ${fmtDate(a.data)} às ${fmtH(a.hora)} · Restante: <strong>${fmtMoney(restante)}</strong></div>
       <div style="display:flex;gap:8px;margin-top:10px">
@@ -284,6 +331,31 @@ async function renderNotifPanel(){
       </div>
     </div>`;
   }).join('');
+  // Cancelado/faltante: são só informativas, então a notificação inteira é
+  // clicável pra dispensar (além do x), igual notificação de celular.
+  const cancelHtml=canceladosNovos.map(a=>{
+    const d=new Date(a.data+'T00:00:00');
+    const dow=DNS_LABELS[d.getDay()];
+    return `<div class="notif-item clickable" onclick="admDismissNotif('cancel','${a.id}')">
+      <button class="notif-x" title="Tirar da lista" onclick="event.stopPropagation();admDismissNotif('cancel','${a.id}')">✕</button>
+      <div style="font-size:.82rem;font-weight:900;color:var(--redt);margin-bottom:6px;padding-right:20px">⚠️ Agendamento cancelado</div>
+      <div style="font-weight:800;font-size:.9rem">${esc(a.cliente?.nome||a.nome_avulso)||'—'}</div>
+      <div style="font-size:.78rem;color:var(--t2);margin-top:2px">💅 ${a.servico?.nome||'—'}</div>
+      <div style="font-size:.76rem;color:var(--t3);margin-top:2px">${dow}, ${fmtDate(a.data)} às ${fmtH(a.hora)}</div>
+    </div>`;
+  }).join('');
+  const faltHtml=faltantesNovos.map(a=>{
+    const d=new Date(a.data+'T00:00:00');
+    const dow=DNS_LABELS[d.getDay()];
+    return `<div class="notif-item clickable" onclick="admDismissNotif('faltante','${a.id}')">
+      <button class="notif-x" title="Tirar da lista" onclick="event.stopPropagation();admDismissNotif('faltante','${a.id}')">✕</button>
+      <div style="font-size:.82rem;font-weight:900;color:var(--t2);margin-bottom:6px;padding-right:20px">👻 Cliente faltou</div>
+      <div style="font-weight:800;font-size:.9rem">${esc(a.cliente?.nome||a.nome_avulso)||'—'}</div>
+      <div style="font-size:.78rem;color:var(--t2);margin-top:2px">💅 ${a.servico?.nome||'—'}</div>
+      <div style="font-size:.76rem;color:var(--t3);margin-top:2px">${dow}, ${fmtDate(a.data)} às ${fmtH(a.hora)}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML=pendHtml+cancelHtml+faltHtml;
 }
 
 async function admConfPixNotif(id){
@@ -317,11 +389,10 @@ async function admRejectPixNotif(id){
 }
 
 async function updateNotifCount(){
-  const today=todayStr();
-  const{count,error}=await sb.from('agendamentos').select('*',{count:'exact',head:true})
-    .eq('status','pendente').gte('data',today);
-  if(error) console.error('updateNotifCount:',error);
-  const n=count||0;
+  const[pendentesNovos,canceladosNovos,faltantesNovos]=await Promise.all([
+    fetchPendentesNaoVistos(), fetchCanceladosNaoVistos(), fetchFaltantesNaoVistos()
+  ]);
+  const n=pendentesNovos.length+canceladosNovos.length+faltantesNovos.length;
   const navBadge=document.getElementById('nav-pend-badge');
   if(navBadge){ navBadge.textContent=n; navBadge.classList.toggle('hidden',n===0); }
   ['notif-badge','notif-badge-ag'].forEach(id=>{
@@ -341,6 +412,9 @@ function initNotifications(){
       const n=await updateNotifCount();
       if(payload.eventType==='INSERT' && payload.new?.status==='pendente'){
         toast(`🔔 Nova solicitação de agendamento! (${n} pendente${n>1?'s':''})`);
+      }
+      if(payload.eventType==='UPDATE' && payload.new?.status==='cancelado' && payload.old?.status!=='cancelado'){
+        toast('⚠️ Um agendamento foi cancelado — veja em 🔔 Notificações');
       }
       admRefreshCurrent();
       if(notifOpen) renderNotifPanel();
@@ -443,14 +517,17 @@ async function loadProfile(){
   }
   profile=data;
 }
-// Favoritos (localStorage)
-function getFavs(){ try{ return JSON.parse(localStorage.getItem('ffiuza_favs')||'[]'); }catch(e){ return []; } }
+// Favoritos (localStorage) — chave por conta: sem isso, num aparelho usado por
+// mais de uma cliente (ou família), uma via os favoritos marcados pela outra.
+function favsKey(){ return `ffiuza_favs_${user?.id||'anon'}`; }
+function pendingSuccessKey(){ return `ffiuza_pending_success_${user?.id||'anon'}`; }
+function getFavs(){ try{ return JSON.parse(localStorage.getItem(favsKey())||'[]'); }catch(e){ return []; } }
 function isFav(id){ return getFavs().includes(id); }
 function toggleFav(id, e){
   e.stopPropagation();
   const favs=getFavs(), idx=favs.indexOf(id);
   if(idx>=0) favs.splice(idx,1); else favs.push(id);
-  localStorage.setItem('ffiuza_favs',JSON.stringify(favs));
+  localStorage.setItem(favsKey(),JSON.stringify(favs));
   bkRenderServs(); renderHomeServs();
 }
 function renderHomeServs(){
@@ -573,8 +650,10 @@ function initCliente(){
   setTimeout(maybeShowPushBanner,1500);
 
   // Restaura tela de confirmação se o app foi reiniciado logo após um agendamento
-  // (acontece quando o iOS/Android mata o PWA ao abrir o WhatsApp)
-  const _ps=localStorage.getItem('ffiuza_pending_success');
+  // (acontece quando o iOS/Android mata o PWA ao abrir o WhatsApp). Chave por
+  // conta — senão, trocar de conta no mesmo aparelho podia restaurar o
+  // comprovante de agendamento de outra cliente.
+  const _ps=localStorage.getItem(pendingSuccessKey());
   if(_ps){
     try{
       const d=JSON.parse(_ps);
@@ -594,7 +673,7 @@ function initCliente(){
         return;
       }
     }catch(e){}
-    localStorage.removeItem('ffiuza_pending_success');
+    localStorage.removeItem(pendingSuccessKey());
   }
 
   cliTab('home');
@@ -611,7 +690,7 @@ function cliIrAgendar(servId){
 }
 
 function cliTab(tab){
-  if(tab!=='success') localStorage.removeItem('ffiuza_pending_success');
+  if(tab!=='success') localStorage.removeItem(pendingSuccessKey());
   CLI_TABS.forEach(t=>{ hide('cli-'+t); document.getElementById('cntab-'+t)?.classList.remove('active'); });
   show('cli-'+tab);
   document.getElementById('cntab-'+tab)?.classList.add('active');
@@ -678,8 +757,10 @@ async function cliRenderHome(){
 }
 
 async function cliCancelar(id){
-  const{data:appt}=await sb.from('agendamentos').select('data,status').eq('id',id).single();
-  if(!appt||appt.data<todayStr()){toast('⚠️ Não é possível cancelar agendamento passado');return;}
+  const{data:appt}=await sb.from('agendamentos').select('data,hora,status').eq('id',id).single();
+  // Compara o horário de início real (não só a data): antes só bloqueava dia
+  // passado, então dava pra cancelar um horário de hoje que já tinha começado.
+  if(!appt||brDateTime(appt.data,appt.hora)<=new Date()){toast('⚠️ Não é possível cancelar agendamento passado');return;}
   if(!['agendado','pendente'].includes(appt.status)){toast('⚠️ Este agendamento não pode ser cancelado');return;}
   if(!confirm('Cancelar este agendamento?')) return;
   const{error}=await sb.from('agendamentos').update({status:'cancelado'}).eq('id',id);
@@ -888,11 +969,12 @@ async function bkValidarHoraAposServico(){
     for(let i=0;i<sh;i++) takenH.add(hh+i);
   });
 
+  const horariosSet=new Set(horarios.map(h=>parseInt(h.split(':')[0])));
   const hh=parseInt(bkHora.split(':')[0]);
   let valid=horarios.includes(bkHora);
   if(valid){
     for(let i=0;i<slots;i++){
-      if(takenH.has(hh+i)){valid=false;break;}
+      if(takenH.has(hh+i)||!horariosSet.has(hh+i)){valid=false;break;}
     }
   }
 
@@ -987,13 +1069,19 @@ async function bkRenderTimes(){
   // 24hrs minimum: slot datetime must be > now + 24h
   const minTime=new Date(); minTime.setTime(minTime.getTime()+24*60*60*1000);
 
+  // Conjunto de horas habilitadas (expediente) — um serviço de várias horas
+  // só pode começar se TODAS as horas que ele ocupa estiverem no expediente,
+  // não só a primeira. Ex.: 14h desabilitado bloqueia início às 13h se o
+  // serviço passar das 14h; o último horário do dia limita serviços longos.
+  const horariosSet=new Set(horarios.map(h=>parseInt(h.split(':')[0])));
+
   document.getElementById('bk-times').innerHTML=horarios.map(h=>{
     const hh=parseInt(h.split(':')[0]);
 
-    // Check if any of the needed consecutive slots is already taken
+    // Check if any of the needed consecutive slots is already taken or fora do expediente
     let blocked=false;
     for(let i=0;i<curSlots;i++){
-      if(takenH.has(hh+i)){blocked=true;break;}
+      if(takenH.has(hh+i)||!horariosSet.has(hh+i)){blocked=true;break;}
     }
 
     // 24hrs advance check
@@ -1085,7 +1173,7 @@ async function bkConfirm(){
 
   // Grava o estado ANTES de abrir o WhatsApp — garante que o iPhone tenha o que
   // restaurar mesmo que descarte o app ao trocar para o WhatsApp
-  localStorage.setItem('ffiuza_pending_success', JSON.stringify({
+  localStorage.setItem(pendingSuccessKey(), JSON.stringify({
     servLabel, dataFmt, bkHora,
     totalPreco, restante, bkPagamento,
     waSalonHref, ts: Date.now()
@@ -1142,7 +1230,7 @@ function admTab(tab,el){
   if(tab==='agenda')    admRenderAgenda();
   if(tab==='clientes')  admRenderClis();
   if(tab==='servicos')  { admRenderServs(); admRenderSalonInfo(); }
-  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); refreshPushUI(); }
+  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); refreshPushUI(); admRenderAgendaIcs(); }
 }
 function admFabClick(){
   const tab=document.querySelector('.nav-tab.active[id^="antab-"]')?.id?.replace('antab-','');
@@ -1510,11 +1598,14 @@ async function admRenderDayList(){
 function admApptHtml(a){
   const isPend=a.status==='pendente';
   const isFalt=a.status==='faltante';
+  const isAvulsa=!a.cliente_id;
+  const nomeCli=a.cliente?.nome||a.nome_avulso||'—';
+  const telCli=a.cliente?.tel||a.tel_avulso||'';
   const bc=a.status==='concluido'?'badge-green':a.status==='cancelado'?'badge-red':isPend?'badge-gold':isFalt?'badge-gray':'badge-tan';
   const bl=a.status==='concluido'?'Concluído':a.status==='cancelado'?'Cancelado':isPend?'⏳ Pix pendente':isFalt?'👻 Faltou':'Agendado';
-  const wa=a.cliente?.tel?.replace(/\D/g,'');
+  const wa=telCli.replace(/\D/g,'');
   const servNome=resolveServNomes(a,servicosAll);
-  const reminderMsg=`📍 *Lembrete de horário.*\n\nOlá ${(a.cliente?.nome||'').split(' ')[0]}! ✨\nTudo bem?\n\nVocê tem um horário agendado *amanhã*.\n\n💅🏻 Se programe!\n⏳ Chegue com 10 minutos de antecedência para beber uma água, ir ao banheiro e se preparar para seu atendimento.\n⏰ Não se atrase! Tolerância máxima de 10 minutos.\n\nEstamos no endereço: *R. Copeia, 814 - São Geraldo*\n\nPodemos confirmar seu agendamento?\n\n_@ffiuza_nails_ 💅`;
+  const reminderMsg=`📍 *Lembrete de horário.*\n\nOlá ${nomeCli.split(' ')[0]}! ✨\nTudo bem?\n\nVocê tem um horário agendado *amanhã*.\n\n💅🏻 Se programe!\n⏳ Chegue com 10 minutos de antecedência para beber uma água, ir ao banheiro e se preparar para seu atendimento.\n⏰ Não se atrase! Tolerância máxima de 10 minutos.\n\nEstamos no endereço: *R. Copeia, 814 - São Geraldo*\n\nPodemos confirmar seu agendamento?\n\n_@ffiuza_nails_ 💅`;
   const reminderBtn=wa?`<a href="${waLink('55'+wa,reminderMsg)}" target="_blank" class="btn btn-sm btn-ghost" style="text-decoration:none;padding:7px 9px" title="Lembrete WA">🔔</a>`:'';
   const restante=Math.max(0,(a.valor||a.servico?.preco||0)-SINAL_VALOR);
   const valorInfo=isPend
@@ -1525,7 +1616,7 @@ function admApptHtml(a){
   return `<div class="aa ${a.status}">
     <div class="aa-top">
       <div class="aa-time">${fmtH(a.hora)}</div>
-      <div class="aa-name">${esc(a.cliente?.nome)||'—'}</div>
+      <div class="aa-name">${esc(nomeCli)}${isAvulsa?' <span style="font-size:.62rem;background:var(--s3);color:var(--t3);padding:2px 6px;border-radius:6px;font-weight:800;vertical-align:middle">SEM APP</span>':''}</div>
       <span class="badge ${bc}" style="flex-shrink:0">${bl}</span>
     </div>
     <div class="aa-bot">
@@ -1565,6 +1656,18 @@ async function admDelAgend(id){
   toast('🗑️ Excluído'); admRenderDayList(); admRenderDash();
 }
 
+// Cliente "avulsa" = sem cadastro no app (só nome/telefone, digitados na hora).
+// Não entra no cartão fidelidade nem recebe notificação — não tem conta pra
+// vincular isso. Serve pra admin nunca precisar sair do app pra marcar
+// alguém que não tem familiaridade com celular/não quer baixar o app.
+function admSetModoCliente(avulsa){
+  admAgAvulsa=avulsa;
+  document.getElementById('ag-modo-cadastrada').classList.toggle('sel',!avulsa);
+  document.getElementById('ag-modo-avulsa').classList.toggle('sel',avulsa);
+  document.getElementById('ag-cli-wrap').classList.toggle('hidden',avulsa);
+  document.getElementById('ag-avulsa-wrap').classList.toggle('hidden',!avulsa);
+}
+
 async function admOpenAgend(data){
   editAgendId=null; admAgServs=[];
   await admPopSelects();
@@ -1574,6 +1677,9 @@ async function admOpenAgend(data){
   document.getElementById('ag-status').value='agendado';
   document.getElementById('ag-obs').value='';
   document.getElementById('ag-cli').value='';
+  document.getElementById('ag-avulsa-nome').value='';
+  document.getElementById('ag-avulsa-tel').value='';
+  admSetModoCliente(false);
   const spChk=document.getElementById('ag-sinal-pago'); if(spChk) spChk.checked=false;
   document.getElementById('sh-agend-title').textContent='✨ Novo Agendamento';
   admRenderAgServList();
@@ -1591,7 +1697,11 @@ async function admEditAgend(id){
     const s=servicosAll.find(x=>x.id===a.servico_id);
     admAgServs=s?[s]:[];
   } else { admAgServs=[]; }
-  document.getElementById('ag-cli').value=a.cliente_id;
+  const avulsa=!a.cliente_id;
+  admSetModoCliente(avulsa);
+  document.getElementById('ag-cli').value=a.cliente_id||'';
+  document.getElementById('ag-avulsa-nome').value=a.nome_avulso||'';
+  document.getElementById('ag-avulsa-tel').value=a.tel_avulso||'';
   document.getElementById('ag-data').value=a.data;
   document.getElementById('ag-hora').value=a.hora?.slice(0,5);
   document.getElementById('ag-valor').value=a.valor;
@@ -1609,16 +1719,24 @@ async function admPopSelects(){
 }
 async function admSalvarAgend(){
   const cli=document.getElementById('ag-cli').value;
+  const avulsaNome=document.getElementById('ag-avulsa-nome').value.trim();
+  const avulsaTel=sanitizeTel(document.getElementById('ag-avulsa-tel').value);
   const data=document.getElementById('ag-data').value;
   const hora=document.getElementById('ag-hora').value;
   const valor=parseFloat(document.getElementById('ag-valor').value)||0;
   const status=document.getElementById('ag-status').value;
   const obs=document.getElementById('ag-obs').value;
-  if(!cli||!admAgServs.length||!data||!hora){ toast('⚠️ Preencha todos os campos'); return; }
+  if(admAgAvulsa){
+    if(!avulsaNome||!admAgServs.length||!data||!hora){ toast('⚠️ Preencha nome, serviço, data e horário'); return; }
+  } else {
+    if(!cli||!admAgServs.length||!data||!hora){ toast('⚠️ Preencha todos os campos'); return; }
+  }
   const sinalPago=document.getElementById('ag-sinal-pago')?.checked||false;
   const durMin=admAgServs.reduce((sum,x)=>sum+servDur(x),0)||60;
   const payload={
-    cliente_id:cli,
+    cliente_id:admAgAvulsa?null:cli,
+    nome_avulso:admAgAvulsa?avulsaNome:null,
+    tel_avulso:admAgAvulsa?(avulsaTel||null):null,
     servico_id:admAgServs[0].id,
     servicos_ids:admAgServs.map(s=>s.id),
     data,hora:hora+':00',duracao_min:durMin,valor,status,obs,sinal_pago:sinalPago
@@ -1694,11 +1812,12 @@ async function admRenderAgTimes(){
     const hh=parseInt(a.hora.split(':')[0]);
     for(let i=0;i<sh;i++) takenH.add(hh+i);
   });
+  const horariosSet=new Set(horarios.map(h=>parseInt(h.split(':')[0])));
   const curHora=document.getElementById('ag-hora').value;
   el.innerHTML=horarios.map(h=>{
     const hh=parseInt(h.split(':')[0]);
     let blocked=false;
-    for(let i=0;i<slots;i++){ if(takenH.has(hh+i)){blocked=true;break;} }
+    for(let i=0;i<slots;i++){ if(takenH.has(hh+i)||!horariosSet.has(hh+i)){blocked=true;break;} }
     const sel=curHora===h;
     return `<div class="tb ${sel?'sel':''} ${blocked&&!sel?'taken':''}" onclick="${blocked&&!sel?'':'admSelAgHora(\''+h+'\')'}">
       ${blocked&&!sel?`<span style="font-size:.9rem">🚫</span><br>${h}`:h}</div>`;
@@ -1929,6 +2048,30 @@ async function admDelServ(id){
   await fetchServs(); await admFetchServicosAll(); admRenderServs();
 }
 
+// ── AGENDA NO IPHONE (feed .ics/webcal) ──
+// URL protegida por token (guardado em salon_config.info, gerado uma vez no
+// banco) — não precisa de login pra funcionar porque quem busca esse link é o
+// próprio app Calendário do iOS, não uma sessão logada.
+function agendaIcsUrl(scheme){
+  const token=getSI().agenda_ics_token;
+  if(!token) return null;
+  const host=SUPABASE_URL.replace(/^https?:\/\//,'');
+  return `${scheme}://${host}/functions/v1/agenda-ics?token=${token}`;
+}
+function admRenderAgendaIcs(){
+  const el=document.getElementById('adm-ics-link'); if(!el) return;
+  const httpsUrl=agendaIcsUrl('https');
+  const webcalUrl=agendaIcsUrl('webcal');
+  if(!httpsUrl){ el.textContent='Link ainda não disponível — tente recarregar o app.'; return; }
+  el.innerHTML=`<a href="${webcalUrl}" style="color:var(--primary);text-decoration:none;word-break:break-all">${httpsUrl}</a>`;
+}
+function admCopiarIcsLink(){
+  const url=agendaIcsUrl('https');
+  if(!url){ toast('⚠️ Link ainda não disponível'); return; }
+  navigator.clipboard.writeText(url).then(()=>toast('📋 Link copiado! Cole em Ajustes → Calendário → Contas'))
+    .catch(()=>toast('⚠️ Não foi possível copiar'));
+}
+
 // ── FINANCEIRO ──
 async function finTab(periodo, el){
   finPeriodo=periodo;
@@ -1957,7 +2100,7 @@ async function finTab(periodo, el){
   document.getElementById('fin-sub').textContent=`${(data||[]).length} atendimentos concluídos`;
   document.getElementById('fin-list').innerHTML=(data||[]).map(a=>`
     <div class="fin-row">
-      <div><div class="fn">${a.cliente?.nome||'—'}</div><div class="fd">${fmtDate(a.data)} · ${fmtH(a.hora)} · ${a.servico?.nome||'—'}</div></div>
+      <div><div class="fn">${a.cliente?.nome||a.nome_avulso||'—'}</div><div class="fd">${fmtDate(a.data)} · ${fmtH(a.hora)} · ${a.servico?.nome||'—'}</div></div>
       <div class="fval">${fmtMoney(a.valor)}</div>
     </div>`).join('')||'<div style="text-align:center;color:var(--t2);padding:20px;font-size:.84rem">Sem registros no período</div>';
 }
