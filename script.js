@@ -974,7 +974,7 @@ async function bkValidarHoraAposServico(){
   let valid=horarios.includes(bkHora);
   if(valid){
     for(let i=0;i<slots;i++){
-      if(takenH.has(hh+i)||!horariosSet.has(hh+i)){valid=false;break;}
+      if(takenH.has(hh+i)||horaForaDoExpediente(hh+i,horariosSet)){valid=false;break;}
     }
   }
 
@@ -1072,7 +1072,8 @@ async function bkRenderTimes(){
   // Conjunto de horas habilitadas (expediente) — um serviço de várias horas
   // só pode começar se TODAS as horas que ele ocupa estiverem no expediente,
   // não só a primeira. Ex.: 14h desabilitado bloqueia início às 13h se o
-  // serviço passar das 14h; o último horário do dia limita serviços longos.
+  // serviço passar das 14h — mas só se 14h for um buraco no meio da agenda;
+  // se 14h for o fim do expediente, um serviço longo pode começar ali normal.
   const horariosSet=new Set(horarios.map(h=>parseInt(h.split(':')[0])));
 
   document.getElementById('bk-times').innerHTML=horarios.map(h=>{
@@ -1081,7 +1082,7 @@ async function bkRenderTimes(){
     // Check if any of the needed consecutive slots is already taken or fora do expediente
     let blocked=false;
     for(let i=0;i<curSlots;i++){
-      if(takenH.has(hh+i)||!horariosSet.has(hh+i)){blocked=true;break;}
+      if(takenH.has(hh+i)||horaForaDoExpediente(hh+i,horariosSet)){blocked=true;break;}
     }
 
     // 24hrs advance check
@@ -1245,6 +1246,17 @@ function getHorariosData(dateStr){
   const perDia=getSI().horarios_por_dia||{};
   if(Object.prototype.hasOwnProperty.call(perDia,dow)) return perDia[dow]||[];
   return []; // dia sem configuração = fechado
+}
+
+// Um serviço de mais de 1h só pode "atravessar" uma hora desabilitada se essa
+// hora estiver DEPOIS da última hora habilitada do dia — ou seja, é só o fim
+// do expediente (não existe vaga nenhuma sendo pulada ali, então tanto faz).
+// Uma hora desabilitada no MEIO da agenda (ex: 16h fechado com 15h e 17h
+// abertos) continua bloqueando — essa foi fechada de propósito e não dá pra
+// atravessar. hora é o número da hora (ex: 16), horariosSet as horas abertas.
+function horaForaDoExpediente(hora, horariosSet){
+  const maxHora=Math.max(...horariosSet);
+  return hora<=maxHora && !horariosSet.has(hora);
 }
 
 function admRenderHorCal(){
@@ -1817,7 +1829,7 @@ async function admRenderAgTimes(){
   el.innerHTML=horarios.map(h=>{
     const hh=parseInt(h.split(':')[0]);
     let blocked=false;
-    for(let i=0;i<slots;i++){ if(takenH.has(hh+i)||!horariosSet.has(hh+i)){blocked=true;break;} }
+    for(let i=0;i<slots;i++){ if(takenH.has(hh+i)||horaForaDoExpediente(hh+i,horariosSet)){blocked=true;break;} }
     const sel=curHora===h;
     return `<div class="tb ${sel?'sel':''} ${blocked&&!sel?'taken':''}" onclick="${blocked&&!sel?'':'admSelAgHora(\''+h+'\')'}">
       ${blocked&&!sel?`<span style="font-size:.9rem">🚫</span><br>${h}`:h}</div>`;
