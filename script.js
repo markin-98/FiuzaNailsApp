@@ -1230,7 +1230,7 @@ function admTab(tab,el){
   if(tab==='agenda')    admRenderAgenda();
   if(tab==='clientes')  admRenderClis();
   if(tab==='servicos')  { admRenderServs(); admRenderSalonInfo(); }
-  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); refreshPushUI(); admRenderAgendaIcs(); }
+  if(tab==='perfil')    { finTab('hoje',document.getElementById('ftab-hoje')); refreshPushUI(); }
 }
 function admFabClick(){
   const tab=document.querySelector('.nav-tab.active[id^="antab-"]')?.id?.replace('antab-','');
@@ -2051,38 +2051,13 @@ async function admDelServ(id){
 // ── AGENDA NO IPHONE (feed .ics/webcal) ──
 // URL protegida por token (guardado em salon_config.info, gerado uma vez no
 // banco) — não precisa de login pra funcionar porque quem busca esse link é o
-// próprio app Calendário do iOS, não uma sessão logada.
+// próprio app Calendário do iOS, não uma sessão logada. Nunca aparece escrita
+// na tela — só copiada direto pro clipboard, minimiza exposição.
 function agendaIcsUrl(scheme){
   const token=getSI().agenda_ics_token;
   if(!token) return null;
   const host=SUPABASE_URL.replace(/^https?:\/\//,'');
   return `${scheme}://${host}/functions/v1/agenda-ics?token=${token}`;
-}
-// Escondido por padrão — quem passa o olho na tela ou tira print não vê o
-// link. Some de novo toda vez que a aba Perfil é reaberta, então não fica
-// exposto sozinho depois que a admin sai da tela.
-let admIcsRevelado=false;
-function admRenderAgendaIcs(){
-  admIcsRevelado=false;
-  admAtualizarIcsBox();
-}
-function admToggleIcsLink(){
-  admIcsRevelado=!admIcsRevelado;
-  admAtualizarIcsBox();
-}
-function admAtualizarIcsBox(){
-  const el=document.getElementById('adm-ics-link'); if(!el) return;
-  const btn=document.getElementById('adm-ics-toggle');
-  const httpsUrl=agendaIcsUrl('https');
-  if(!httpsUrl){ el.textContent='Link ainda não disponível — tente recarregar o app.'; return; }
-  if(admIcsRevelado){
-    const webcalUrl=agendaIcsUrl('webcal');
-    el.innerHTML=`<a href="${webcalUrl}" style="color:var(--primary);text-decoration:none;word-break:break-all">${httpsUrl}</a>`;
-    if(btn) btn.textContent='🙈 Esconder';
-  } else {
-    el.textContent='🔒 Link oculto por segurança';
-    if(btn) btn.textContent='👁️ Mostrar';
-  }
 }
 function admCopiarIcsLink(){
   const url=agendaIcsUrl('https');

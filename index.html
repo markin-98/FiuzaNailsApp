@@ -515,29 +515,6 @@
         <button class="btn btn-sm btn-primary" onclick="ativarPush()">Ativar</button>
       </div>
 
-      <!-- AGENDA NO IPHONE (feed .ics) -->
-      <div class="sec">📅 Agenda no iPhone</div>
-      <div class="card" style="margin-bottom:12px">
-        <p style="font-size:.8rem;color:var(--t2);line-height:1.6;margin:0 0 10px">
-          Assine esse link uma única vez no Calendário do iPhone e seus agendamentos confirmados aparecem lá automaticamente — sem precisar copiar nada na mão.
-        </p>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <div style="flex:1;min-width:0;background:var(--s2);border-radius:10px;padding:10px 12px;font-size:.72rem;word-break:break-all;color:var(--t3)" id="adm-ics-link">🔒 Link oculto por segurança</div>
-          <button class="btn btn-sm btn-ghost" id="adm-ics-toggle" onclick="admToggleIcsLink()" style="flex-shrink:0;white-space:nowrap">👁️ Mostrar</button>
-        </div>
-        <button class="btn btn-sm btn-ghost btn-full" onclick="admCopiarIcsLink()" style="margin-bottom:10px">📋 Copiar link</button>
-        <div style="font-size:.7rem;color:var(--t3);margin:-4px 0 10px">⚠️ Não compartilhe esse link — quem tiver acesso a ele vê os nomes e horários das suas clientes.</div>
-        <details style="font-size:.76rem;color:var(--t3);line-height:1.6">
-          <summary style="cursor:pointer;font-weight:700;color:var(--t2)">Como assinar no iPhone</summary>
-          <ol style="margin:8px 0 0;padding-left:18px">
-            <li>Copie o link acima</li>
-            <li>Ajustes → Calendário → Contas → Adicionar Conta → Outra → Adicionar Calendário de Assinatura</li>
-            <li>Cole o link e toque em Próximo/Salvar</li>
-            <li>Toque na conta que apareceu → Atualizar → escolha "A cada hora" ou "15 minutos" (o padrão vem em "Semanalmente", que é lento demais)</li>
-          </ol>
-        </details>
-      </div>
-
       <!-- FINANCEIRO -->
       <div class="sec">Financeiro</div>
       <div class="card">
@@ -563,6 +540,12 @@
           <div class="fs" id="fin-sub">0 atendimentos concluídos</div>
         </div>
         <div id="fin-list"></div>
+      </div>
+
+      <!-- AGENDA NO IPHONE (feed .ics) -->
+      <div class="sec">📅 Agenda no iPhone</div>
+      <div class="card">
+        <button class="btn btn-sm btn-primary btn-full" onclick="admCopiarIcsLink()">📋 Copiar link da agenda</button>
       </div>
     </div>
   </div>
